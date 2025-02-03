@@ -29,16 +29,6 @@ jobs:
       run: |
         sudo apt-get install clang lld llvm-20-linker-tools clang-19 lld-19 llvm-19-linker-tools || true
 
-    - name: Add Ubuntu 22.04 and 20.04 package repos
-      run: |
-        printf 'deb http://archive.ubuntu.com/ubuntu/ %s main restricted universe multiverse\n' jammy{,-{updates,security,backports}} | sudo tee /etc/apt/sources.list.d/jammy.list
-        printf 'deb http://archive.ubuntu.com/ubuntu/ %s main restricted universe multiverse\n' focal{,-{updates,security,backports}} | sudo tee /etc/apt/sources.list.d/focal.list
-        sudo apt-get update
-
-    - name: Install Clang 6 through 15 and GCC 7 through 11
-      run: |
-        sudo apt-get install clang-{6.0,7,8,9,10,11,12,13,14,15} llvm-{{6.0,7,8,9,10}-dev,{11,12,13}-linker-tools} g{cc,++}-{7,8,9,10,11}
-
     - uses: actions/checkout@v4
 
     - name: Get available compilers
@@ -69,12 +59,41 @@ jobs:
           printf "%-${n}s\t%s\n" "${cc_v[$_cc]}" "$_cc"
         done | tee compilers_gcc
 
+    - name: Compile for Linux
+      shell: bash
+      run: |
+        pushd src
+        clang-20 -Wall -Wextra -Wpedantic -Weverything -std=gnu23 -O3 -march=native -mtune=native -flto=full dbs26.c -o dbs26 -DNDEBUG=1
+        popd
+
     - name: Clone msvc-wine
       uses: actions/checkout@v4
       with:
         repository: mstorsjo/msvc-wine
         path: msvc-wine
         ref: master
+
+    - name: Install Windows SDK
+      shell: bash
+      run: |
+        pushd msvc-wine
+        mkdir -p sdk
+        sdk=$(realpath -e sdk)
+        ./vsdownload.py --dest "$sdk"
+        ./install.sh "$sdk"
+        popd
+
+    - name: Compile for Windows
+      shell: bash
+      run: |
+        pushd msvc-wine
+        sdk=$(realpath -e sdk)
+        BIN="$sdk/bin/x64" . ./msvcenv-native.sh
+        popd
+        pushd src
+        clang-20 --target=x86_64-windows-msvc -fuse-ld=lld -Wall -Wextra -Wpedantic -Weverything -std=gnu23 -O3 -march=native -mtune=native -flto=full dbs26.c -o dbs26.exe -DNDEBUG=1
+        popd
+
 
   build-macos-15:
     runs-on: macos-15
@@ -134,9 +153,8 @@ jobs:
           printf "%-${n}s\t%s\n" "${cc_v[$_cc]}" "$_cc"
         done | tee compilers_gcc
 
-    - name: Clone msvc-wine
-      uses: actions/checkout@v4
-      with:
-        repository: mstorsjo/msvc-wine
-        path: msvc-wine
-        ref: master
+    - name: Compile
+      shell: bash
+      run: |
+        cd src
+        clang -Wall -Wextra -Wpedantic -Weverything -std=gnu2x -O3 -march=native -mtune=native -flto=full dbs26.c -o dbs26 -DNDEBUG=1
