@@ -1,0 +1,135 @@
+name: C/C++ CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-ubuntu-24_04:
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Add apt.llvm.org
+      run: |
+        printf -- 'deb http://apt.llvm.org/noble/ llvm-toolchain-noble%s main\n' '' '-19' | sudo tee /etc/apt/sources.list.d/apt.llvm.org.list
+        wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+
+    - name: Upgrade packages
+      run: |
+        sudo apt-get update
+        sudo apt-get upgrade -y
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get install -y python3 msitools ca-certificates
+        echo "ncpu=$((n = $(nproc)+0, n > 0 ? n : 1))" >> "$GITHUB_ENV"
+
+    - name: Upgrade Clang
+      run: |
+        sudo apt-get install clang lld llvm-20-linker-tools clang-19 lld-19 llvm-19-linker-tools || true
+
+    - name: Add Ubuntu 22.04 and 20.04 package repos
+      run: |
+        printf 'deb http://archive.ubuntu.com/ubuntu/ %s main restricted universe multiverse\n' jammy{,-{updates,security,backports}} | sudo tee /etc/apt/sources.list.d/jammy.list
+        printf 'deb http://archive.ubuntu.com/ubuntu/ %s main restricted universe multiverse\n' focal{,-{updates,security,backports}} | sudo tee /etc/apt/sources.list.d/focal.list
+        sudo apt-get update
+
+    - name: Install Clang 6 through 15 and GCC 7 through 11
+      run: |
+        sudo apt-get install clang-{6.0,7,8,9,10,11,12,13,14,15} llvm-{{6.0,7,8,9,10}-dev,{11,12,13}-linker-tools} g{cc,++}-{7,8,9,10,11}
+
+    - uses: actions/checkout@v4
+
+    - name: Get available compilers
+      run: |
+        set +e
+        uname -a
+        printf -- '\n+---------+\n|compilers|\n+---------+\n'
+        . scripts/lib.sh
+        get_compilers
+        declare -a cc_clang cc_gcc
+        declare -A cc_v
+        for _cc in "${compilers[@]}"; do
+          v=$("$_cc" --version 2>&1 | head -1)
+          case "$_cc" in
+          clang*)
+            cc_clang+=("$_cc") ;;
+          gcc*)
+            [[ ! "$v" =~ clang ]] || continue
+            cc_gcc+=("$_cc") ;;
+          esac
+          cc_v["$_cc"]="$v"
+        done
+        n=$(printf '%s\n' "${cc_v[@]}" | wc -L)
+        for _cc in "${cc_clang[@]}"; do
+          printf "%-${n}s\t%s\n" "${cc_v[$_cc]}" "$_cc"
+        done | tee compilers_clang
+        for _cc in "${cc_gcc[@]}"; do
+          printf "%-${n}s\t%s\n" "${cc_v[$_cc]}" "$_cc"
+        done | tee compilers_gcc
+
+    - name: Clone msvc-wine
+      uses: actions/checkout@v4
+      with:
+        repository: mstorsjo/msvc-wine
+        path: msvc-wine
+        ref: master
+
+  build-macos-15:
+    runs-on: macos-15
+    steps:
+    - name: Install updates
+      run: |
+        set +e
+        echo "bash $BASH_VERSION"
+        brew update
+        brew upgrade
+        brew install bash
+
+    - name: Install dependencies
+      run: |
+        set +e
+        echo "bash $BASH_VERSION"
+        brew install binutils coreutils gnu-sed make
+        if [[ -z "$HOMEBREW_PREFIX" ]]; then
+          export HOMEBREW_PREFIX="$(brew --prefix)"
+          echo 'export HOMEBREW_PREFIX="$(brew --prefix)"' >> "$HOME/.bash_profile"
+          echo "HOMEBREW_PREFIX=$HOMEBREW_PREFIX" >> "$GITHUB_ENV"
+        fi
+        export PATH="$(brew --prefix binutils)/bin:$HOMEBREW_PREFIX/opt/coreutils/libexec/gnubin:$HOMEBREW_PREFIX/opt/gnu-sed/libexec/gnubin:$HOMEBREW_PREFIX/opt/make/libexec/gnubin:$PATH"
+        printf '%s\n' "alias nproc='sysctl -n hw.logicalcpu'" \
+               "export PATH=\"$PATH\"" >> "$HOME/.bash_profile"
+        printf '%s\n' "PATH=$PATH" \
+               "ncpu=$(sysctl -n hw.logicalcpu)" >> "$GITHUB_ENV"
+
+    - uses: actions/checkout@v4
+
+    - name: Get available compilers, run warnings summary builds
+      shell: bash
+      run: |
+        set +e
+        uname -a
+        printf -- '\n+---------+\n|compilers|\n+---------+\n'
+        . scripts/lib.sh
+        get_compilers
+        declare -a cc_clang cc_gcc
+        declare -A cc_v
+        for _cc in "${compilers[@]}"; do
+          v=$("$_cc" --version 2>&1 | head -1)
+          case "$_cc" in
+          clang*)
+            cc_clang+=("$_cc") ;;
+          gcc*)
+            [[ ! "$v" =~ clang ]] || continue
+            cc_gcc+=("$_cc") ;;
+          esac
+          cc_v["$_cc"]="$v"
+        done
+        n=$(printf '%s\n' "${cc_v[@]}" | wc -L)
+        for _cc in "${cc_clang[@]}"; do
+          printf "%-${n}s\t%s\n" "${cc_v[$_cc]}" "$_cc"
+        done | tee compilers_clang
+        for _cc in "${cc_gcc[@]}"; do
+          printf "%-${n}s\t%s\n" "${cc_v[$_cc]}" "$_cc"
+        done | tee compilers_gcc
