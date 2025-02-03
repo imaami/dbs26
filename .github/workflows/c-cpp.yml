@@ -79,7 +79,7 @@ jobs:
         pushd msvc-wine
         mkdir -p sdk
         sdk=$(realpath -e sdk)
-        ./vsdownload.py --dest "$sdk"
+        ./vsdownload.py --accept-license --dest "$sdk"
         ./install.sh "$sdk"
         popd
 
