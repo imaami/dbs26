@@ -62,23 +62,30 @@ jobs:
     - name: Compile for Linux
       shell: bash
       run: |
+        mkdir -p build/linux
         pushd src
-        clang-20 -Wall -Wextra -Wpedantic -Weverything -std=gnu23 -O3 -march=native -mtune=native -flto=full dbs26.c -o dbs26 -DNDEBUG=1
+        clang-20 -Wall -Wextra -Wpedantic -Weverything -std=gnu23 -O3 -march=native -mtune=native -flto=full dbs26.c -o ../build/linux/dbs26 -DNDEBUG=1
         popd
+
+    - name: Archive Linux binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: dbs26-linux
+        path: build/linux/dbs26
 
     - name: Clone msvc-wine
       uses: actions/checkout@v4
       with:
         repository: mstorsjo/msvc-wine
-        path: msvc-wine
+        path: msvc
         ref: master
 
     - name: Install Windows SDK
       shell: bash
       run: |
-        pushd msvc-wine
-        mkdir -p sdk
-        sdk=$(realpath -e sdk)
+        mkdir -p msvc/sdk
+        sdk=$(realpath -e msvc/sdk)
+        pushd msvc
         ./vsdownload.py --accept-license --dest "$sdk"
         ./install.sh "$sdk"
         popd
@@ -86,14 +93,20 @@ jobs:
     - name: Compile for Windows
       shell: bash
       run: |
-        pushd msvc-wine
-        sdk=$(realpath -e sdk)
+        mkdir -p build/windows
+        sdk=$(realpath -e msvc/sdk)
+        pushd msvc
         BIN="$sdk/bin/x64" . ./msvcenv-native.sh
         popd
         pushd src
-        clang-20 --target=x86_64-windows-msvc -fuse-ld=lld -Wall -Wextra -Wpedantic -Weverything -std=gnu23 -O3 -march=native -mtune=native -flto=full dbs26.c -o dbs26.exe -DNDEBUG=1
+        clang-20 --target=x86_64-windows-msvc -fuse-ld=lld -Wall -Wextra -Wpedantic -Weverything -std=gnu23 -O3 -march=native -mtune=native -flto=full dbs26.c -o ../build/windows/dbs26.exe -DNDEBUG=1
         popd
 
+    - name: Archive Windows binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: dbs26-windows
+        path: build/windows/dbs26
 
   build-macos-15:
     runs-on: macos-15
@@ -156,5 +169,13 @@ jobs:
     - name: Compile
       shell: bash
       run: |
-        cd src
-        clang -Wall -Wextra -Wpedantic -Weverything -std=gnu2x -O3 -march=native -mtune=native -flto=full dbs26.c -o dbs26 -DNDEBUG=1
+        mkdir -p build/macos
+        pushd src
+        clang -Wall -Wextra -Wpedantic -Weverything -std=gnu2x -O3 -march=native -mtune=native -flto=full dbs26.c -o ../build/macos/dbs26 -DNDEBUG=1
+        popd
+
+    - name: Archive macOS binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: dbs26-macos
+        path: build/macos/dbs26
