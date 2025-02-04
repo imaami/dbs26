@@ -12,7 +12,7 @@ jobs:
     steps:
     - name: Add apt.llvm.org
       run: |
-        printf -- 'deb http://apt.llvm.org/noble/ llvm-toolchain-noble%s main\n' '' '-19' '-20' | sudo tee /etc/apt/sources.list.d/apt.llvm.org.list
+        printf -- 'deb http://apt.llvm.org/noble/ llvm-toolchain-noble%s main\n' '' '-20' | sudo tee /etc/apt/sources.list.d/apt.llvm.org.list
         wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
 
     - name: Upgrade packages
@@ -23,13 +23,30 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get install -y python3 msitools ca-certificates
-        echo "ncpu=$((n = $(nproc)+0, n > 0 ? n : 1))" >> "$GITHUB_ENV"
 
     - name: Upgrade Clang
       run: |
-        sudo apt-get install clang lld llvm-20-linker-tools clang-19 lld-19 llvm-19-linker-tools || true
+        sudo apt-get install clang lld llvm-20-linker-tools clang-20 lld-20 || true
 
     - uses: actions/checkout@v4
+
+    - name: Set environment variables
+      run: |
+        __common_c_flags=( \
+          -std=gnu23       \
+          -O3              \
+          -flto=full       \
+          -march=x86-64-v3 \
+          -mtune=x86-64-v3 \
+          -Wall            \
+          -Wextra          \
+          -Wpedantic       \
+          -Weverything     \
+          -DNDEBUG=1       \
+        )
+        echo "__cflags=${__cflags[@]}" >> "$GITHUB_ENV"
+        echo "__src_dir=$(realpath -e src)" >> "$GITHUB_ENV"
+        echo "ncpu=$((n = $(nproc)+0, n > 0 ? n : 1))" >> "$GITHUB_ENV"
 
     - name: Get available compilers
       run: |
@@ -62,16 +79,15 @@ jobs:
     - name: Compile for Linux
       shell: bash
       run: |
-        mkdir -p build/linux
-        pushd src
-        clang-20 -Wall -Wextra -Wpedantic -Weverything -std=gnu23 -O3 -march=native -mtune=native -flto=full dbs26.c -o ../build/linux/dbs26 -DNDEBUG=1
-        popd
+        mkdir -p build
+        clang-20 -working-directory "$__src_dir" $__cflags \
+                 dbs26.c -o ../build/dbs26
 
     - name: Archive Linux binary
       uses: actions/upload-artifact@v4
       with:
         name: dbs26-linux
-        path: build/linux/dbs26
+        path: build/dbs26
 
     - name: Clone msvc-wine
       uses: actions/checkout@v4
@@ -93,14 +109,14 @@ jobs:
     - name: Compile for Windows
       shell: bash
       run: |
-        mkdir -p build/windows
+        mkdir -p build
         sdk=$(realpath -e msvc/sdk)
-        pushd msvc
-        BIN="$sdk/bin/x64" . ./msvcenv-native.sh
-        popd
-        pushd src
-        clang-20 --target=x86_64-windows-msvc -fuse-ld=lld -Wall -Wextra -Wpedantic -Weverything -std=gnu23 -O3 -march=native -mtune=native -flto=full dbs26.c -o ../build/windows/dbs26.exe -DNDEBUG=1
-        popd
+        BIN="$sdk/bin/x64" . msvc/msvcenv-native.sh
+        F=(-working-directory "$(realpath -e src)" -std=gnu23 -O3
+           -flto=full -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1)
+        clang-20 "${F[@]}" dbs26.c -o ../build/dbs26.exe \
+                 --target=x86_64-windows-msvc -fuse-ld=lld \
+                 -march=x86-64-v3 -mtune=x86-64-v3
 
     - name: Archive Windows binary
       uses: actions/upload-artifact@v4
@@ -169,13 +185,20 @@ jobs:
     - name: Compile
       shell: bash
       run: |
-        mkdir -p build/macos
-        pushd src
-        clang -Wall -Wextra -Wpedantic -Weverything -std=gnu2x -O3 -march=native -mtune=native -flto=full dbs26.c -o ../build/macos/dbs26 -DNDEBUG=1
-        popd
+        mkdir -p build
+        F=(-working-directory "$(realpath -e src)" -std=gnu2x -O3
+           -flto=full -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1)
+        clang "${F[@]}" dbs26.c -o ../build/dbs26-arm64 -arch arm64
+        clang "${F[@]}" dbs26.c -o ../build/dbs26-x86_64 -arch x86_64 \
+              -march=skylake -mtune=skylake
+        lipo -create -output build/dbs26 build/dbs26-arm64 build/dbs26-x86_64
 
     - name: Archive macOS binary
       uses: actions/upload-artifact@v4
       with:
         name: dbs26-macos
-        path: build/macos/dbs26
+        path: build/dbs26
+
+    - name: Verify program output
+      shell: bash
+      run: build/dbs26 -o- | sha1sum
