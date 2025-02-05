@@ -30,14 +30,23 @@ jobs:
 
     - uses: actions/checkout@v4
 
-    - name: Set environment variables
+    - name: Clone msvc-wine
+      uses: actions/checkout@v4
+      with:
+        repository: mstorsjo/msvc-wine
+        path: msvc
+        ref: master
+
+    - name: Set environment
       run: |
-        __common_c_flags=( \
+        mkdir -p build
+        mkdir -p msvc/sdk
+        __cflags=(         \
           -std=gnu23       \
           -O3              \
           -flto=full       \
           -march=x86-64-v3 \
-          -mtune=x86-64-v3 \
+          -mtune=znver3    \
           -Wall            \
           -Wextra          \
           -Wpedantic       \
@@ -45,7 +54,8 @@ jobs:
           -DNDEBUG=1       \
         )
         echo "__cflags=${__cflags[@]}" >> "$GITHUB_ENV"
-        echo "__src_dir=$(realpath -e src)" >> "$GITHUB_ENV"
+        echo "__srcdir=$(realpath -e src)" >> "$GITHUB_ENV"
+        echo "__winsdk=$(realpath -e msvc/sdk)" >> "$GITHUB_ENV"
         echo "ncpu=$((n = $(nproc)+0, n > 0 ? n : 1))" >> "$GITHUB_ENV"
 
     - name: Get available compilers
@@ -79,9 +89,9 @@ jobs:
     - name: Compile for Linux
       shell: bash
       run: |
-        mkdir -p build
-        clang-20 -working-directory "$__src_dir" $__cflags \
+        clang-20 -working-directory "$__srcdir" $__cflags \
                  dbs26.c -o ../build/dbs26
+        strip --strip-all build/dbs26
 
     - name: Archive Linux binary
       uses: actions/upload-artifact@v4
@@ -89,40 +99,31 @@ jobs:
         name: dbs26-linux
         path: build/dbs26
 
-    - name: Clone msvc-wine
-      uses: actions/checkout@v4
-      with:
-        repository: mstorsjo/msvc-wine
-        path: msvc
-        ref: master
+    - name: Verify Linux binary output
+      shell: bash
+      run: build/dbs26 -o- | sha1sum
 
     - name: Install Windows SDK
       shell: bash
       run: |
-        mkdir -p msvc/sdk
-        sdk=$(realpath -e msvc/sdk)
         pushd msvc
-        ./vsdownload.py --accept-license --dest "$sdk"
-        ./install.sh "$sdk"
+        ./vsdownload.py --accept-license --dest "$__winsdk"
+        ./install.sh "$__winsdk"
         popd
 
     - name: Compile for Windows
       shell: bash
       run: |
-        mkdir -p build
-        sdk=$(realpath -e msvc/sdk)
-        BIN="$sdk/bin/x64" . msvc/msvcenv-native.sh
-        F=(-working-directory "$(realpath -e src)" -std=gnu23 -O3
-           -flto=full -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1)
-        clang-20 "${F[@]}" dbs26.c -o ../build/dbs26.exe \
+        BIN="$__winsdk/bin/x64" . msvc/msvcenv-native.sh
+        clang-20 -working-directory "$__srcdir" $__cflags \
                  --target=x86_64-windows-msvc -fuse-ld=lld \
-                 -march=x86-64-v3 -mtune=x86-64-v3
+                 dbs26.c -o ../build/dbs26.exe
 
     - name: Archive Windows binary
       uses: actions/upload-artifact@v4
       with:
         name: dbs26-windows
-        path: build/windows/dbs26.exe
+        path: build/dbs26.exe
 
   build-macos-15:
     runs-on: macos-15
@@ -182,7 +183,7 @@ jobs:
           printf "%-${n}s\t%s\n" "${cc_v[$_cc]}" "$_cc"
         done | tee compilers_gcc
 
-    - name: Compile
+    - name: Compile for macOS
       shell: bash
       run: |
         mkdir -p build
@@ -199,6 +200,6 @@ jobs:
         name: dbs26-macos
         path: build/dbs26
 
-    - name: Verify program output
+    - name: Verify macOS binary output
       shell: bash
       run: build/dbs26 -o- | sha1sum
