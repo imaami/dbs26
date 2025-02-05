@@ -48,7 +48,6 @@ jobs:
     - name: Set environment
       shell: bash
       run: |
-        mkdir -p build
         mkdir -p msvc/sdk
         __cflags=(         \
           -std=gnu23       \
@@ -99,16 +98,15 @@ jobs:
     - name: Compile for Linux
       shell: bash
       run: |
-        clang-20 -working-directory "$__srcdir" $__cflags \
-                 dbs26.c -o ../build/dbs26
-        strip --strip-all build/dbs26
+        clang-20 -working-directory "$__srcdir" $__cflags dbs26.c -o ../dbs26
+        strip --strip-all dbs26
 
     - name: Archive Linux binary
       uses: actions/upload-artifact@v4
       with:
         name: dbs26-linux
         path: |
-          build/dbs26
+          dbs26
           LICENSE
           README.md
 
@@ -124,24 +122,24 @@ jobs:
         BIN="$__winsdk/bin/x64" . msvc/msvcenv-native.sh
         clang-20 -working-directory "$__srcdir" $__cflags \
                  --target=x86_64-windows-msvc -fuse-ld=lld \
-                 dbs26.c -o ../build/dbs26.exe
+                 dbs26.c -o ../dbs26.exe
 
     - name: Archive Windows binary
       uses: actions/upload-artifact@v4
       with:
         name: dbs26-windows
         path: |
-          build/dbs26.exe
+          dbs26.exe
           LICENSE
           README.md
 
     - name: Verify Linux binary output
       shell: bash
-      run: build/dbs26 -o- | sha1sum
+      run: ./dbs26 -o- | sha1sum
 
     - name: Verify Windows binary output
       shell: bash
-      run: WINEDEBUG=-all wine64 build/dbs26.exe -o- | sha1sum
+      run: WINEDEBUG=-all wine64 ./dbs26.exe -o- | sha1sum
 
   build-macos-15:
     runs-on: macos-15
@@ -204,26 +202,23 @@ jobs:
     - name: Compile for macOS
       shell: bash
       run: |
-        mkdir -p build
         pushd src
         F=(-std=gnu2x -O3 -flto=full -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1)
-        clang -arch arm64 "${F[@]}" -o ../build/dbs26-arm64 dbs26.c
-        clang -arch x86_64 "${F[@]}" -o ../build/dbs26-x86_64 dbs26.c
+        clang -arch arm64 "${F[@]}" -o ../dbs26-arm64 dbs26.c
+        clang -arch x86_64 "${F[@]}" -o ../dbs26-x86_64 dbs26.c
         popd
-        pushd build
         lipo -create -output dbs26 dbs26-arm64 dbs26-x86_64
-        popd
 
     - name: Archive macOS binary
       uses: actions/upload-artifact@v4
       with:
         name: dbs26-macos
         path: |
-          build/dbs26
+          dbs26
           LICENSE
           README.md
 
     - name: Verify macOS binary output
       run: |
-        arch -arm64 build/dbs26 -o- | sha1sum
-        arch -x86_64 build/dbs26 -o- | sha1sum
+        arch -arm64 ./dbs26 -o- | sha1sum
+        arch -x86_64 ./dbs26 -o- | sha1sum
