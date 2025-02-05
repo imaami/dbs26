@@ -127,7 +127,7 @@ jobs:
 
     - name: Verify Windows binary output
       shell: bash
-      run: wine64 build/dbs26.exe -o- | sha1sum
+      run: wine build/dbs26.exe -o- | sha1sum
 
   build-macos-15:
     runs-on: macos-15
