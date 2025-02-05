@@ -381,7 +381,11 @@ worker_wait (struct worker *w)
 	int e = pthread_join(w->tid, &r);
 	if (e)
 		(void)fprintf(stderr, "pthread_join: %s\n", strerror(e));
+# ifndef __ANDROID__
 	else if (r != PTHREAD_CANCELED)
+# else // __ANDROID__
+	else
+# endif // __ANDROID__
 		seq_count = (uintptr_t)r;
 #else
 	DWORD r = WaitForSingleObject((HANDLE)w->tid, INFINITE);
