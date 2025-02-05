@@ -203,9 +203,10 @@ jobs:
         F=(-std=gnu2x -O3 -flto=full -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1)
         clang -arch arm64 "${F[@]}" -o ../build/dbs26-arm64 dbs26.c
         clang -arch x86_64 "${F[@]}" -o ../build/dbs26-x86_64 dbs26.c
+        clang -arch x86_64h -march=haswell -mtune=haswell "${F[@]}" -o ../build/dbs26-x86_64h dbs26.c
         popd
         pushd build
-        lipo -create -output dbs26 dbs26-arm64 dbs26-x86_64
+        lipo -create -output dbs26 dbs26-arm64 dbs26-x86_64 dbs26-x86_64h
         popd
 
     - name: Archive macOS binary
@@ -218,3 +219,4 @@ jobs:
       run: |
         arch -arm64 build/dbs26 -o- | sha1sum
         arch -x86_64 build/dbs26 -o- | sha1sum
+        arch -x86_64h build/dbs26 -o- | sha1sum
