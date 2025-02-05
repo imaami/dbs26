@@ -35,6 +35,9 @@
 # include <unistd.h>
 #else
 # include <Windows.h>
+
+# include <fcntl.h>
+# include <io.h>
 # include <process.h>
 # include <profileapi.h>
 #endif
@@ -933,6 +936,10 @@ solver_solve (struct solver *s,
 		if (out[0] == '-' && !out[1]) {
 			f = stdout;
 			out = nullptr;
+#ifdef _WIN32
+			(void)fflush(stdout);
+			(void)_setmode(_fileno(stdout), _O_BINARY);
+#endif
 		} else {
 #ifndef _WIN32
 			f = fopen(out, "wbe");
