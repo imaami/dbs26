@@ -218,4 +218,3 @@ jobs:
       run: |
         arch -arm64 build/dbs26 -o- | sha1sum
         arch -x86_64 build/dbs26 -o- | sha1sum
-        arch -x86_64 build/dbs26 -o build/out.bin
