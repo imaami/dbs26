@@ -107,7 +107,9 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: dbs26-linux
-        path: build/dbs26
+        path: |
+          build/dbs26
+          LICENSE
 
     - name: Install Windows SDK
       shell: bash
@@ -127,7 +129,9 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: dbs26-windows
-        path: build/dbs26.exe
+        path: |
+          build/dbs26.exe
+          LICENSE
 
     - name: Verify Linux binary output
       shell: bash
@@ -213,7 +217,9 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: dbs26-macos
-        path: build/dbs26
+        path: |
+          build/dbs26
+          LICENSE
 
     - name: Verify macOS binary output
       run: |

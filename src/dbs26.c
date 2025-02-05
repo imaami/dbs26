@@ -1007,13 +1007,35 @@ help (char const *argv0,
 		(void)fprintf(stderr, "%s: %s\n", argv0, strerror(error));
 
 	(void)fprintf(stderr,
-	              "Usage: %s [-h] [-b] [-o <file>] [-t <n>]"
+	              "Usage: %s [-o <file>] [-t <n>]"
+	              "\n       %s -b [-t <n>]"
+	              "\n       %s -h"
+	              "\n"
+	              "\nGenerates all binary De Bruijn sequences with subsequence"
+	              "\nlength 6 (all 67108864 of them)."
+	              "\n"
 	              "\nOptions:"
-	              "\n  -h, --help            Print this help message"
-	              "\n  -b, --benchmark       Only benchmark, don't save sequences"
-	              "\n  -o, --output <file>   Save sequences to <file> (dbs26.bin)"
+	              "\n  -h, --help            Print this help message and exit"
+	              "\n  -b, --benchmark       Only benchmark, don't output data"
+	              "\n  -o, --output <file>   Save output to <file> (dbs26.bin)"
 	              "\n  -t, --threads <n>     Use <n> threads (available cores)"
-	              "\n", argv0);
+	              "\n"
+	              "\nWhen no arguments are given, computes the sequences using"
+	              "\nall available logical CPUs and saves them to a file named"
+	              "\ndbs26.bin in the current directory. Output data is always"
+	              "\nraw binary uint64_t data in the native endianness."
+	              "\n"
+	              "\nSpecifying the output file as a dash ('-') will print the"
+	              "\nsequences to standard output in binary mode. Only do this"
+	              "\nwhen redirecting the output to a file or another program."
+	              "\n"
+	              "\nOn systems where xxd is available you can view the output"
+	              "\nwith the following (or similar) command:"
+	              "\n"
+	              "\n  %s -o- | xxd -e -g8 | less"
+	              "\n"
+	              "\nNote: the size of the raw output is 512 MiB - be careful!"
+	              "\n", argv0, argv0, argv0, argv0);
 
 	return error ? EXIT_FAILURE : EXIT_SUCCESS;
 }
