@@ -20,13 +20,20 @@ jobs:
         sudo apt-get update
         sudo apt-get upgrade -y
 
-    - name: Install dependencies
-      run: |
-        sudo apt-get install -y ca-certificates msitools python3 winbind wine64
-
     - name: Upgrade Clang
       run: |
         sudo apt-get install clang clang-20 lld lld-20 llvm-20-linker-tools || true
+
+    - name: Add dl.winehq.org
+      run: |
+        sudo dpkg --add-architecture i386
+        sudo mkdir -pm755 /etc/apt/keyrings
+        wget -qO - https://dl.winehq.org/wine-builds/winehq.key | sudo gpg --dearmor -o /etc/apt/keyrings/winehq-archive.key -
+        sudo wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/noble/winehq-noble.sources
+
+    - name: Install Windows build dependencies
+      run: |
+        sudo apt-get install -y --install-recommends ca-certificates msitools python3 winbind winehq-staging
 
     - uses: actions/checkout@v4
 
@@ -38,6 +45,7 @@ jobs:
         ref: master
 
     - name: Set environment
+      shell: bash
       run: |
         mkdir -p build
         mkdir -p msvc/sdk
@@ -59,6 +67,7 @@ jobs:
         echo "ncpu=$((n = $(nproc)+0, n > 0 ? n : 1))" >> "$GITHUB_ENV"
 
     - name: Get available compilers
+      shell: bash
       run: |
         set +e
         uname -a
@@ -102,10 +111,8 @@ jobs:
     - name: Install Windows SDK
       shell: bash
       run: |
-        pushd msvc
-        ./vsdownload.py --accept-license --dest "$__winsdk"
-        ./install.sh "$__winsdk"
-        popd
+        msvc/vsdownload.py --accept-license --dest "$__winsdk"
+        msvc/install.sh "$__winsdk"
 
     - name: Compile for Windows
       shell: bash
@@ -127,7 +134,7 @@ jobs:
 
     - name: Verify Windows binary output
       shell: bash
-      run: wine build/dbs26.exe -o- | sha1sum
+      run: WINEDEBUG=-all wine64 build/dbs26.exe -o- | sha1sum
 
   build-macos-15:
     runs-on: macos-15
@@ -207,5 +214,4 @@ jobs:
         path: build/dbs26
 
     - name: Verify macOS binary output
-      shell: bash
       run: build/dbs26 -o- | sha1sum
