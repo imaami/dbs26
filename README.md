@@ -5,7 +5,7 @@ length 6 (*all 67108864 of them*).
 
 ## Usage
 
-<pre>
+```
   -h, --help            Help
   -b, --benchmark       Benchmark
   -o, --output <file>   Save to <file>
@@ -26,4 +26,4 @@ with the following (or similar) command:
   dbs26 -o- | xxd -e -g8 | less
 
 Note: the size of the raw output is 512 MiB - be careful!
-</pre>
+```
