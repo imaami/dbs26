@@ -187,12 +187,14 @@ jobs:
       shell: bash
       run: |
         mkdir -p build
-        F=(-working-directory "$(realpath -e src)" -std=gnu2x -O3
-           -flto=full -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1)
-        clang "${F[@]}" dbs26.c -o ../build/dbs26-arm64 -arch arm64
-        clang "${F[@]}" dbs26.c -o ../build/dbs26-x86_64 -arch x86_64 \
-              -march=skylake -mtune=skylake
-        lipo -create -output build/dbs26 build/dbs26-arm64 build/dbs26-x86_64
+        pushd src
+        F=(-std=gnu2x -O3 -flto=full -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1)
+        clang -arch arm64 "${F[@]}" -o ../build/dbs26-arm64 dbs26.c
+        clang -arch x86_64 "${F[@]}" -o ../build/dbs26-x86_64 -march=skylake -mtune=skylake dbs26.c
+        popd
+        pushd build
+        lipo -create -output dbs26 dbs26-arm64 dbs26-x86_64
+        popd
 
     - name: Archive macOS binary
       uses: actions/upload-artifact@v4
