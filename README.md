@@ -27,3 +27,12 @@ with the following (or similar) command:
 
 Note: the size of the raw output is 512 MiB - be careful!
 ```
+
+## Why only B(2,6)?
+
+Because it's possible.
+
+The number of unique binary De Bruijn sequences with subsequence length
+6 is a modest 67108864. Each sequence being 64 bits, i.e. 8 bytes, the
+entire set takes up only 512 MiB. Going up just a single step to B(2,7)
+explodes the full set to 144115188075855872. You see the problem here.
