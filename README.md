@@ -30,9 +30,16 @@ Note: the size of the raw output is 512 MiB - be careful!
 
 ## Why only B(2,6)?
 
-Because it's possible.
+Because it's possible. Generating this specific set of sequences serves
+as a proof of concept for the general approach.
 
 The number of unique binary De Bruijn sequences with subsequence length
 6 is a modest 67108864. Each sequence being 64 bits, i.e. 8 bytes, the
 entire set takes up only 512 MiB. Going up just a single step to B(2,7)
-explodes the full set to 144115188075855872. You see the problem here.
+explodes the full set to 144115188075855872. B(2,6) is the sweet spot
+between "meh" and practically impossible.
+
+## Does it scale?
+
+Yes. The algorithm, while currently implemented and optimized for B(2,6)
+exclusively, can be modified to generate longer De Bruijn sequences.
