@@ -1,4 +1,9 @@
-# dbs26
+# <pre>
+#   ▌▌     ▞▀▖▞▀▖
+# ▞▀▌▛▀▖▞▀▘ ▗▘▙▄ 
+# ▌ ▌▌ ▌▝▀▖▗▘ ▌ ▌
+# ▝▀▘▀▀ ▀▀ ▀▀▘▝▀ 
+# </pre>
 
 Generates all binary De Bruijn sequences with subsequence
 length 6 (*all 67108864 of them*).
