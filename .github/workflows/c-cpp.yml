@@ -12,7 +12,7 @@ jobs:
     steps:
     - name: Add apt.llvm.org
       run: |
-        printf -- 'deb http://apt.llvm.org/noble/ llvm-toolchain-noble%s main\n' '' '-20' | sudo tee /etc/apt/sources.list.d/apt.llvm.org.list
+        printf -- 'deb http://apt.llvm.org/noble/ llvm-toolchain-noble%s main\n' '' | sudo tee /etc/apt/sources.list.d/apt.llvm.org.list
         wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
 
     - name: Upgrade packages
@@ -22,7 +22,7 @@ jobs:
 
     - name: Upgrade Clang
       run: |
-        sudo apt-get install clang clang-20 lld lld-20 llvm-20-linker-tools || true
+        sudo apt-get install clang clang-21 lld lld-21 llvm-21-linker-tools || true
 
     - name: Add dl.winehq.org
       run: |
@@ -53,6 +53,7 @@ jobs:
           -std=gnu23       \
           -O3              \
           -flto=full       \
+          -fuse-ld=lld     \
           -march=x86-64-v3 \
           -mtune=znver3    \
           -Wall            \
@@ -98,7 +99,7 @@ jobs:
     - name: Compile for Linux
       shell: bash
       run: |
-        clang-20 -working-directory "$__srcdir" $__cflags dbs26.c -o ../dbs26
+        clang-21 -working-directory "$__srcdir" $__cflags dbs26.c -o ../dbs26
         strip --strip-all dbs26
 
     - name: Archive Linux binary
@@ -120,9 +121,8 @@ jobs:
       shell: bash
       run: |
         BIN="$__winsdk/bin/x64" . msvc/msvcenv-native.sh
-        clang-20 -working-directory "$__srcdir" $__cflags \
-                 --target=x86_64-windows-msvc -fuse-ld=lld \
-                 dbs26.c -o ../dbs26.exe
+        clang-21 -working-directory "$__srcdir" $__cflags \
+                 --target=x86_64-windows-msvc dbs26.c -o ../dbs26.exe
 
     - name: Archive Windows binary
       uses: actions/upload-artifact@v4
@@ -135,11 +135,19 @@ jobs:
 
     - name: Verify Linux binary output
       shell: bash
-      run: ./dbs26 -o- | sha1sum
+      run: |
+        ./dbs26 -o- | sha1sum
+        ./dbs26
+        sha1sum dbs26.bin
+        rm -f dbs26.bin
 
     - name: Verify Windows binary output
       shell: bash
-      run: WINEDEBUG=-all wine64 ./dbs26.exe -o- | sha1sum
+      run: |
+        WINEDEBUG=-all wine64 ./dbs26.exe -o- | sha1sum
+        WINEDEBUG=-all wine64 ./dbs26.exe
+        sha1sum dbs26.bin
+        rm -f dbs26.bin
 
   build-macos-15:
     runs-on: macos-15
@@ -222,3 +230,6 @@ jobs:
       run: |
         arch -arm64 ./dbs26 -o- | sha1sum
         arch -x86_64 ./dbs26 -o- | sha1sum
+        ./dbs26
+        sha1sum dbs26.bin
+        rm -f dbs26.bin
