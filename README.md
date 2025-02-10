@@ -42,4 +42,13 @@ between "meh" and practically impossible.
 ## Does it scale?
 
 Yes. The algorithm, while currently implemented and optimized for B(2,6)
-exclusively, can be modified to generate longer De Bruijn sequences.
+exclusively, can be modified to generate longer De Bruijn sequences, and
+I plan on doing so in the future.
+
+## Why is the code ugly?
+
+This project started as a quick single-file proof-of-concept on GitHub
+Gist. At the time of writing, that state of affairs has not changed. My
+primary goal after moving from Gist to a proper repository was to build
+a cross-platform binary release for the mathematically inclined visitors
+to explore. (Unfortunately, I'm not sure if there have been any so far.)
