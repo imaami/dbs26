@@ -77,7 +77,7 @@ with the following (or similar) command:
 Note: the size of the raw output is 512 MiB - be careful!
 ```
 
-## Footnotes: ugly things I'm still working on
+## Footnotes: things I'm still working on
 
 - The program could use more features; suggestions are welcome.
 - There's no description of the algorithm. I realize this is a major
