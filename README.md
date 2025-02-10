@@ -76,3 +76,15 @@ with the following (or similar) command:
 
 Note: the size of the raw output is 512 MiB - be careful!
 ```
+
+## Footnotes: ugly things I'm still working on
+
+- The program could use more features; suggestions are welcome.
+- There's no description of the algorithm. I realize this is a major
+  problem for non-programmers. Will fix as schedule allows.
+- The algorithm would serve well as a library, but its usefulness is
+  currently very limited from that perspective.
+- The algorithm is currently recursive. Will fix when adding support
+  for longer De Bruijn sequences.
+- There's no makefile, and the code is a single file. Will add build
+  scripts and a proper project structure as I go.
