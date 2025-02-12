@@ -5,14 +5,7 @@
  * @author Juuso Alasuutari
  */
 
-#ifdef __cplusplus
-# error "This is C and won't compile in C++ mode."
-#endif
-
-#ifdef _WIN32
-# define _CRT_SECURE_NO_WARNINGS
-# define WIN32_LEAN_AND_MEAN
-#endif
+#include "compat.h"
 
 #include <errno.h>
 #include <inttypes.h>
@@ -41,32 +34,12 @@
 # include <intrin.h>
 #endif
 
-#undef HAVE_C23_BOOL
-#undef HAVE_C23_NULLPTR
+// Wow thanks for letting me know you inlined and/or didn't
+pragma_msvc(warning(disable: 4710))
+pragma_msvc(warning(disable: 4711))
 
-#if __STDC_VERSION__ >= 202000L && !defined __INTELLISENSE__
-# ifdef __clang_major__
-#  if __clang_major__ >= 15
-#   define HAVE_C23_BOOL
-#  endif
-#  if __clang_major__ >= 16
-#   define HAVE_C23_NULLPTR
-#  endif
-# elif defined __GNUC__
-#  if __GNUC__ > 13 || (__GNUC__ == 13 && __GNUC_MINOR__ >= 1)
-#   define HAVE_C23_BOOL
-#   define HAVE_C23_NULLPTR
-#  endif
-# endif
-#endif
-
-#ifndef HAVE_C23_BOOL
-# include <stdbool.h>
-#endif
-
-#ifndef HAVE_C23_NULLPTR
-# define nullptr NULL
-#endif
+// Silence warning about Spectre mitigation on memory load
+pragma_msvc(warning(disable: 5045))
 
 #ifdef __clang__
 # pragma clang diagnostic ignored "-Wunknown-warning-option"
@@ -533,12 +506,18 @@ static const uint64_t task_seq_map[] = {
 	0xe40000018000808b, 0xe80000018000808b
 };
 
+// Silence flexible array member warning
+pragma_msvc(warning(push))
+pragma_msvc(warning(disable: 4200))
+
 struct solver {
 	struct u64_view   tasks[countof(task_seq_count)];
 	_Atomic(int32_t)  task_iter;
 	uint32_t          n_workers;
 	struct worker     workers[];
 };
+
+pragma_msvc(warning(pop))
 
 static struct u64_view
 task_solve (struct stk *const stk,
@@ -662,6 +641,7 @@ args (int   argc,
 	for (int i = 0; ++i < argc; ) {
 		char *arg = argv[i];
 
+		// Silence warnings about missing default and enum cases
 		#ifdef __clang__
 		# pragma clang diagnostic push
 		# pragma clang diagnostic ignored "-Wswitch"
@@ -670,6 +650,10 @@ args (int   argc,
 		# pragma GCC diagnostic push
 		# pragma GCC diagnostic ignored "-Wswitch"
 		#endif
+
+		// Ditto
+		pragma_msvc(warning(push))
+		pragma_msvc(warning(disable: 4062))
 
 		switch (expect) {
 		case OPT_OUTPUT:
@@ -763,6 +747,8 @@ args (int   argc,
 				continue;
 			}
 		}
+
+		pragma_msvc(warning(pop))
 
 		#ifdef __clang__
 		# pragma clang diagnostic pop
