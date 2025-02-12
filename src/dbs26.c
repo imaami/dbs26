@@ -996,7 +996,7 @@ help (char const *argv0,
 	              "\nlength 6 (all 67108864 of them)."
 	              "\n"
 	              "\nOptions:"
-	              "\n  -h, --help            Print this help message and exit"
+	              "\n  -h, --help            Show the help you are now reading"
 	              "\n  -b, --benchmark       Only benchmark, don't output data"
 	              "\n  -o, --output <file>   Save output to <file> (dbs26.bin)"
 	              "\n  -t, --threads <n>     Use <n> threads (available cores)"
