@@ -61,7 +61,7 @@ Generates all binary De Bruijn sequences with subsequence
 length 6 (all 67108864 of them).
 
 Options:
-  -h, --help            Print this help message and exit
+  -h, --help            Show the help you are now reading
   -b, --benchmark       Only benchmark, don't output data
   -o, --output <file>   Save output to <file> (dbs26.bin)
   -t, --threads <n>     Use <n> threads (available cores)
