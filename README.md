@@ -11,7 +11,9 @@
 Generates all binary De Bruijn sequences with subsequence length 6
 (*all 67108864 of them*).
 
-## Why only B(2,6)?
+## QNOIPA *(Questions No One In Particular Asked)*
+
+### Why only B(2,6)?
 
 Because it's possible. Generating *and storing* every unique B(2,6) can
 be done in a reasonable amount of time and space, making it a good proof
@@ -23,20 +25,24 @@ entire set takes up only 512 MiB. Going up just a single step to B(2,7)
 explodes the sequence count to 144115188075855872, while B(2,5) is just
 2048 sequences. B(2,6) is the sweet spot between trivial and impossible.
 
-## Does it scale? Can you do B(2,7) or larger?
+### Does it scale?
 
 Yes. The algorithm, while currently implemented and optimized for B(2,6)
 exclusively, can be modified to generate longer De Bruijn sequences, and
-I plan on doing so in the future. None of the larger sets of binary De
-Bruijn sequences can be generated in their entirety, but this algorithm
-can be extended to generate sub-ranges of them starting at any arbitrary
+I plan on doing so in the future.
+
+### Can it do B(2,7) or larger?
+
+Not yet (see above). Complete sets of longer binary De Bruijn sequences
+can't realistically be generated, but the algorithm itself is extensible
+to generating sub-ranges of longer sequences, starting at any arbitrary
 prefix, as long as the prefix contains only unique subsequences.
 
-## Why is the code ugly?
+### Why is the code ugly?
 
 This project started as a quick single-file proof-of-concept on GitHub
-Gist. At the time of writing, that state of affairs has not changed. My
-primary goal after moving from Gist to a proper repository was to build
+Gist. At the time of writing, that state of affairs is slowly improving.
+My primary goal after switching over to a proper repository was to build
 a cross-platform binary release for the mathematically inclined visitors
 to explore. (Unfortunately, I'm not sure there have been any.)
 
@@ -75,6 +81,37 @@ with the following (or similar) command:
   dbs26 -o- | xxd -e -g8 | less
 
 Note: the size of the raw output is 512 MiB - be careful!
+```
+
+## Compiling
+
+### Linux
+
+#### GCC 14 and later
+
+```sh
+gcc -std=gnu23 -Wall -Wextra -Wpedantic -O3 -flto=auto -march=native -mtune=native -o dbs26 src/dbs26.c
+```
+
+#### GCC 13 and older
+
+Older GCC versions will also work but require a different `-std` flag.
+GCC 7.5.0 (which is the oldest I've tested) requires `-std=gnu11`, GCC
+8 requires `-std=gnu18`, and GCC versions 9 to 13 (inclusive) require
+`-std=gnu2x`.
+
+#### Clang
+
+```sh
+clang -std=gnu2x -Wall -Wextra -Weverything -Wpedantic -O3 -flto=full -fuse-ld=lld -march=native -mtune=native -o dbs26 src/dbs26.c
+```
+
+### Windows
+
+#### MSVC (a recent version, I don't know where the exact cutoff is)
+
+```pwsh
+cl /TC /std:clatest /experimental:c11atomics /O2 /Oi /GL /GF /Zo- /favor:AMD64 /arch:AVX2 /MT /Fe: dbs26.exe src/dbs26.c
 ```
 
 ## Footnotes: things I'm still working on
