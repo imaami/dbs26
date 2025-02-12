@@ -1,12 +1,7 @@
 /* SPDX-License-Identifier: LGPL-3.0-or-later */
-/**
- * @file dbs26.c
+/** @file dbs26.c
  * @brief Generate all 67108864 unique binary De Bruijn sequences
  *        with subsequence length 6, ordered by value.
- *
- * Compiling with MSVC on Windows:
- *  cl /TC /std:clatest /experimental:c11atomics /O2 /Oi /GL /GF /Zo- /favor:AMD64 /arch:AVX2 dbs26.c /Fe: dbs26.exe /MT
- *
  * @author Juuso Alasuutari
  */
 
