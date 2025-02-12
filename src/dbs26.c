@@ -41,16 +41,14 @@ pragma_msvc(warning(disable: 4711))
 // Silence warning about Spectre mitigation on memory load
 pragma_msvc(warning(disable: 5045))
 
-#ifdef __clang__
-# pragma clang diagnostic ignored "-Wunknown-warning-option"
-# pragma clang diagnostic ignored "-Wcast-align"
-# pragma clang diagnostic ignored "-Wdeclaration-after-statement"
-# pragma clang diagnostic ignored "-Wdocumentation-unknown-command"
-# pragma clang diagnostic ignored "-Wpre-c11-compat"
-# pragma clang diagnostic ignored "-Wpre-c23-compat"
-# pragma clang diagnostic ignored "-Wpre-c2x-compat"
-# pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
-#endif
+diag_clang(ignored "-Wunknown-warning-option")
+diag_clang(ignored "-Wcast-align")
+diag_clang(ignored "-Wdeclaration-after-statement")
+diag_clang(ignored "-Wdocumentation-unknown-command")
+diag_clang(ignored "-Wpre-c11-compat")
+diag_clang(ignored "-Wpre-c23-compat")
+diag_clang(ignored "-Wpre-c2x-compat")
+diag_clang(ignored "-Wunsafe-buffer-usage")
 
 #define container_of(ptr, T, member) ((T *)( \
   (unsigned char *)(1 ? (ptr) : &((T *)0)->member) - offsetof(T, member) \
@@ -113,10 +111,10 @@ pragma_msvc(warning(disable: 5045))
   , int32_t: u32_count_lsb_1((uint32_t)(x)) \
   , int64_t: u64_count_lsb_1((uint64_t)(x)))
 
-# pragma intrinsic(_BitScanForward)
-# pragma intrinsic(_BitScanReverse)
-# pragma intrinsic(_BitScanForward64)
-# pragma intrinsic(_BitScanReverse64)
+pragma_msvc(intrinsic(_BitScanForward))
+pragma_msvc(intrinsic(_BitScanReverse))
+pragma_msvc(intrinsic(_BitScanForward64))
+pragma_msvc(intrinsic(_BitScanReverse64))
 
 static force_inline unsigned
 u32_count_msb_1 (uint32_t x)
@@ -642,14 +640,9 @@ args (int   argc,
 		char *arg = argv[i];
 
 		// Silence warnings about missing default and enum cases
-		#ifdef __clang__
-		# pragma clang diagnostic push
-		# pragma clang diagnostic ignored "-Wswitch"
-		# pragma clang diagnostic ignored "-Wswitch-default"
-		#elif defined __GNUC__
-		# pragma GCC diagnostic push
-		# pragma GCC diagnostic ignored "-Wswitch"
-		#endif
+		diag(push)
+		diag(ignored "-Wswitch")
+		diag_clang(ignored "-Wswitch-default")
 
 		// Ditto
 		pragma_msvc(warning(push))
@@ -748,13 +741,8 @@ args (int   argc,
 			}
 		}
 
+		diag(pop)
 		pragma_msvc(warning(pop))
-
-		#ifdef __clang__
-		# pragma clang diagnostic pop
-		#elif defined __GNUC__
-		# pragma GCC diagnostic pop
-		#endif
 
 		if (!r.error)
 			r.error = EINVAL;
