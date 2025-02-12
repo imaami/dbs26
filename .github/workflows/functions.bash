@@ -1,6 +1,6 @@
 (return 0 2>/dev/null)              &&
-[[ -z ${DBS26_SCRIPTS_LIB_SH_+1} ]] &&
-declare -g DBS26_SCRIPTS_LIB_SH_=1  && {
+[[ -z ${DBS26_GITHUB_WORKFLOWS_FUNCTIONS_BASH_+1} ]] &&
+declare -g DBS26_GITHUB_WORKFLOWS_FUNCTIONS_BASH_=1  && {
 ########################################
 
 get_compilers() {

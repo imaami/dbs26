@@ -73,7 +73,7 @@ jobs:
         set +e
         uname -a
         printf -- '\n+---------+\n|compilers|\n+---------+\n'
-        . scripts/lib.sh
+        . .github/workflows/functions.bash
         get_compilers
         declare -a cc_clang cc_gcc
         declare -A cc_v
@@ -184,7 +184,7 @@ jobs:
         set +e
         uname -a
         printf -- '\n+---------+\n|compilers|\n+---------+\n'
-        . scripts/lib.sh
+        . .github/workflows/functions.bash
         get_compilers
         declare -a cc_clang cc_gcc
         declare -A cc_v
