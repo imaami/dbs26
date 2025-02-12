@@ -11,6 +11,7 @@
 #endif
 
 #include "compiler.h"
+#include "pragma.h"
 
 #ifdef _WIN32
 # define _CRT_SECURE_NO_WARNINGS
@@ -21,12 +22,12 @@
 #if !defined _WIN32 && \
      defined __STRICT_ANSI__ && !defined _POSIX_C_SOURCE
 # if clang_older_than_version(13)
-#  pragma clang diagnostic push
-#  pragma clang diagnostic ignored "-Wreserved-id-macro"
+diag_clang(push)
+diag_clang(ignored "-Wreserved-id-macro")
 # endif // clang_older_than_version(13)
 # define _POSIX_C_SOURCE 199309L
 # if clang_older_than_version(13)
-#  pragma clang diagnostic pop
+diag_clang(pop)
 # endif // clang_older_than_version(13)
 #endif // !_WIN32 && __STRICT_ANSI__ && !_POSIX_C_SOURCE
 
@@ -53,11 +54,5 @@
 
 #undef HAVE_C23_BOOL
 #undef HAVE_C23_NULLPTR
-
-#ifdef _MSC_VER
-# define pragma_msvc(...) _Pragma(#__VA_ARGS__)
-#else
-# define pragma_msvc(...)
-#endif
 
 #endif /* DBS26_SRC_COMPAT_H_ */
