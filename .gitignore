@@ -11,8 +11,8 @@
 *.res
 *.s
 *.wpa.args.0
+/**/dbs26
 /*.creator.user
 /.qtc_clangd
 /.vscode
 /build
-/src/dbs26
