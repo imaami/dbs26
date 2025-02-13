@@ -83,7 +83,7 @@ pragma_msvc(warning(disable: 5045))
 # define count_lsb_1(x) (unsigned)(all_bits_set(x) \
   ? (int)sizeof(x) * CHAR_BIT : pick_ctz(x)(unsigned_not(x)))
 
-#else
+#else // _MSC_VER
 # define count_msb_1(x) _Generic((x)        \
   , uint32_t: u32_count_msb_1(x)            \
   , uint64_t: u64_count_msb_1(x)            \
@@ -128,7 +128,7 @@ u64_count_lsb_1 (uint64_t x)
 	unsigned long pos = 0;
 	return _BitScanForward64(&pos, ~x) ? (unsigned)pos : 64U;
 }
-#endif
+#endif // _MSC_VER
 
 #define SUB_LEN 6U
 #define SEQ_LEN (1U << SUB_LEN)
