@@ -48,9 +48,6 @@ pragma_msvc(warning(disable: 5045))
 #define countof(x) (sizeof (x) / sizeof (x)[0])
 
 #ifndef _MSC_VER
-# define force_inline __attribute__((always_inline)) inline
-# define const_inline __attribute__((const)) force_inline
-
 # define all_bits_set(x) (_Generic((x) \
   , int: ~0                            \
   , long: ~0L                          \
@@ -87,9 +84,6 @@ pragma_msvc(warning(disable: 5045))
   ? (int)sizeof(x) * CHAR_BIT : pick_ctz(x)(unsigned_not(x)))
 
 #else
-# define force_inline __forceinline
-# define const_inline __forceinline
-
 # define count_msb_1(x) _Generic((x)        \
   , uint32_t: u32_count_msb_1(x)            \
   , uint64_t: u64_count_msb_1(x)            \

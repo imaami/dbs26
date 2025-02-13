@@ -85,4 +85,12 @@ diag_clang(ignored "-Wpre-c23-compat")
 diag_clang(ignored "-Wpre-c11-compat")
 #endif // __clang_major__ >= 19
 
+#ifndef _MSC_VER
+# define force_inline __attribute__((always_inline)) inline
+# define const_inline __attribute__((const)) force_inline
+#else // _MSC_VER
+# define force_inline __forceinline
+# define const_inline __forceinline
+#endif // _MSC_VER
+
 #endif /* DBS26_SRC_COMPAT_H_ */
