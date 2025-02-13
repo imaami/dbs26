@@ -12,6 +12,10 @@
 *.s
 *.wpa.args.0
 /**/dbs26
+/**/dbs26-clang-*-c*
+/**/dbs26-clang-*-gnu*
+/**/dbs26-gcc-*-c*
+/**/dbs26-gcc-*-gnu*
 /*.creator.user
 /.qtc_clangd
 /.vscode
