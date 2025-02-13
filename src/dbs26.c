@@ -518,9 +518,6 @@ task_solve (struct stk *const stk,
 	return u64_view(nullptr, nullptr);
 }
 
-static void
-solver_destroy (struct solver **pp);
-
 static uint32_t
 nproc (void)
 {
