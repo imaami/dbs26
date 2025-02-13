@@ -39,7 +39,7 @@ run() {
 	local -agr gcc_s2=(c2x gnu2x)       gcc_v2=(9 10 11 12 13 "${gcc_v3[@]}")
 	local -agr gcc_s1=(c18 gnu18)       gcc_v1=(8 "${gcc_v2[@]}")
 	local -agr gcc_s0=(c11 gnu11)       gcc_v0=(7 "${gcc_v1[@]}")
-	local -ar sources=(src/dbs26.c)
+	local -ar sources=(src/args.c src/dbs26.c)
 	local -ar c_flags=(-O3 -m{arch,tune}=native -W{all,extra,pedantic})
 	local -i i
 	for ((i = 0; i < 4; i++)); do

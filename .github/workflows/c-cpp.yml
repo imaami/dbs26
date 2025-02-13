@@ -49,6 +49,10 @@ jobs:
       shell: bash
       run: |
         mkdir -p msvc/sdk
+        __csrc=( \
+          args   \
+          dbs26  \
+        )
         __cflags=(         \
           -std=gnu23       \
           -O3              \
@@ -63,6 +67,7 @@ jobs:
           -DNDEBUG=1       \
         )
         echo "__cflags=${__cflags[@]}" >> "$GITHUB_ENV"
+        echo "__src=${__csrc[@]/%/.c}" >> "$GITHUB_ENV"
         echo "__srcdir=$(realpath -e src)" >> "$GITHUB_ENV"
         echo "__winsdk=$(realpath -e msvc/sdk)" >> "$GITHUB_ENV"
         echo "ncpu=$((n = $(nproc)+0, n > 0 ? n : 1))" >> "$GITHUB_ENV"
@@ -99,7 +104,7 @@ jobs:
     - name: Compile for Linux
       shell: bash
       run: |
-        clang-21 -working-directory "$__srcdir" $__cflags dbs26.c -o ../dbs26
+        clang-21 -working-directory "$__srcdir" $__cflags $__src -o ../dbs26
         strip --strip-all dbs26
 
     - name: Archive Linux binary
@@ -122,7 +127,7 @@ jobs:
       run: |
         BIN="$__winsdk/bin/x64" . msvc/msvcenv-native.sh
         clang-21 -working-directory "$__srcdir" $__cflags \
-                 --target=x86_64-windows-msvc dbs26.c -o ../dbs26.exe
+                 --target=x86_64-windows-msvc $__src -o ../dbs26.exe
 
     - name: Archive Windows binary
       uses: actions/upload-artifact@v4
@@ -173,10 +178,31 @@ jobs:
         export PATH="$(brew --prefix binutils)/bin:$HOMEBREW_PREFIX/opt/coreutils/libexec/gnubin:$HOMEBREW_PREFIX/opt/gnu-sed/libexec/gnubin:$HOMEBREW_PREFIX/opt/make/libexec/gnubin:$PATH"
         printf '%s\n' "alias nproc='sysctl -n hw.logicalcpu'" \
                "export PATH=\"$PATH\"" >> "$HOME/.bash_profile"
-        printf '%s\n' "PATH=$PATH" \
-               "ncpu=$(sysctl -n hw.logicalcpu)" >> "$GITHUB_ENV"
+        echo "PATH=$PATH" >> "$GITHUB_ENV"
 
     - uses: actions/checkout@v4
+
+    - name: Set environment
+      shell: bash
+      run: |
+        __csrc=( \
+          args   \
+          dbs26  \
+        )
+        __cflags=(         \
+          -std=gnu2x       \
+          -O3              \
+          -flto=full       \
+          -Wall            \
+          -Wextra          \
+          -Wpedantic       \
+          -Weverything     \
+          -DNDEBUG=1       \
+        )
+        echo "__cflags=${__cflags[@]}" >> "$GITHUB_ENV"
+        echo "__src=${__csrc[@]/%/.c}" >> "$GITHUB_ENV"
+        echo "__srcdir=$(realpath -e src)" >> "$GITHUB_ENV"
+        echo "ncpu=$(sysctl -n hw.logicalcpu)" >> "$GITHUB_ENV"
 
     - name: Get available compilers
       shell: bash
@@ -210,12 +236,13 @@ jobs:
     - name: Compile for macOS
       shell: bash
       run: |
-        pushd src
-        F=(-std=gnu2x -O3 -flto=full -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1)
-        clang -arch arm64 "${F[@]}" -o ../dbs26-arm64 dbs26.c
-        clang -arch x86_64 "${F[@]}" -o ../dbs26-x86_64 dbs26.c
-        popd
-        lipo -create -output dbs26 dbs26-arm64 dbs26-x86_64
+        __outdir="${PWD%/}/"
+        pushd "$__srcdir" >/dev/null
+        clang -arch arm64 $__cflags -o dbs26-arm64 $__src
+        clang -arch x86_64 $__cflags -o dbs26-x86_64 $__src
+        mv dbs26-{arm64,x86_64} "$__outdir"
+        popd >/dev/null
+        lipo -create -output dbs26{,-arm64,-x86_64}
 
     - name: Archive macOS binary
       uses: actions/upload-artifact@v4

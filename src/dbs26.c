@@ -12,7 +12,6 @@
 #include <limits.h>
 #include <stdatomic.h>
 #include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,6 +32,8 @@
 #ifdef _MSC_VER
 # include <intrin.h>
 #endif
+
+#include "args.h"
 
 // Wow thanks for letting me know you inlined and/or didn't
 pragma_msvc(warning(disable: 4710))
@@ -540,207 +541,6 @@ nproc (void)
 	return 1U;
 }
 
-enum opt {
-	OPT_NONE      = 0U,
-	OPT_OUTPUT    = 1U << 0U,
-	OPT_THREADS   = 1U << 1U,
-	OPT_BENCHMARK = 1U << 2U,
-	OPT_HELP      = 1U << 3U,
-};
-
-struct args {
-	uintptr_t   have;
-	char const *output;
-	uint32_t    threads;
-	int32_t     error;
-};
-
-#define F(x) (1U << (x))
-#define ALLOWED_OPT_COMBOS                                   \
- ( F(OPT_NONE                                              ) \
- | F(         OPT_OUTPUT                                   ) \
- | F(                    OPT_THREADS                       ) \
- | F(         OPT_OUTPUT|OPT_THREADS                       ) \
- | F(                                OPT_BENCHMARK         ) \
- | F(                    OPT_THREADS|OPT_BENCHMARK         ) \
- | F(                                              OPT_HELP) )
-
-static force_inline bool
-args_conflict (struct args const *const a)
-{
-	return !(F(a->have) & ALLOWED_OPT_COMBOS);
-}
-
-#undef F
-#undef ALLOWED_OPT_COMBOS
-
-static int
-parse_uint32 (uint32_t *dest,
-              char     *src)
-{
-	if (!*src)
-		return EINVAL;
-
-	errno = 0;
-	char *end = src;
-	int64_t n = _Generic(n
-		, long: strtol
-		, long long: strtoll
-	)(src, &end, 0);
-
-	int e = errno;
-	if (!e) {
-		if (*end)
-			e = EINVAL;
-		else if (n < 0 || n > UINT32_MAX)
-			e = ERANGE;
-		else
-			*dest = (uint32_t)n;
-	}
-
-	return e;
-}
-
-static int
-help (char const *argv0,
-      int         error);
-
-static struct args
-args (int   argc,
-      char *argv[])
-{
-	struct args r = {
-		.have = OPT_NONE,
-		.output = nullptr,
-		.threads = 0U,
-		.error = 0
-	};
-
-	enum opt expect = OPT_NONE;
-
-	for (int i = 0; ++i < argc; ) {
-		char *arg = argv[i];
-
-		// Silence warnings about missing default and enum cases
-		diag(push)
-		diag(ignored "-Wswitch")
-		diag_clang(ignored "-Wswitch-default")
-
-		// Ditto
-		pragma_msvc(warning(push))
-		pragma_msvc(warning(disable: 4062))
-
-		switch (expect) {
-		case OPT_OUTPUT:
-		parse_o_arg:
-			if (!*arg) {
-				r.error = EINVAL;
-				break;
-			}
-			r.have |= OPT_OUTPUT;
-			r.output = arg;
-			expect = OPT_NONE;
-			continue;
-
-		case OPT_THREADS:
-		parse_t_arg:
-			r.error = parse_uint32(&r.threads, arg);
-			if (r.error)
-				break;
-			r.have |= OPT_THREADS;
-			expect = OPT_NONE;
-			continue;
-
-		case OPT_NONE:
-			if (*arg != '-')
-				break;
-
-			++arg;
-			if (*arg == '-') {
-				++arg;
-				if (!strcmp(arg, "benchmark")) {
-					r.have |= OPT_BENCHMARK;
-					continue;
-				}
-				if (!strcmp(arg, "help")) {
-					r.have |= OPT_HELP;
-					continue;
-				}
-				if (!strncmp(arg, "output",
-				             sizeof "output" - 1U)) {
-					arg += sizeof "output" - 1U;
-					if (*arg == '=') {
-						++arg;
-						goto parse_o_arg;
-					}
-					if (!*arg) {
-						expect = OPT_OUTPUT;
-						continue;
-					}
-				} else if (!strncmp(arg, "threads",
-				                    sizeof "threads" - 1U)) {
-					arg += sizeof "threads" - 1U;
-					if (*arg == '=') {
-						++arg;
-						goto parse_t_arg;
-					}
-					if (!*arg) {
-						expect = OPT_THREADS;
-						continue;
-					}
-				}
-				break;
-			}
-
-		next_short_opt:
-			switch (*arg++) {
-			case 'b':
-				r.have |= OPT_BENCHMARK;
-				if (*arg)
-					goto next_short_opt;
-				continue;
-
-			case 'h':
-				r.have |= OPT_HELP;
-				if (*arg)
-					goto next_short_opt;
-				continue;
-
-			case 'o':
-				if (*arg) {
-					r.have |= OPT_OUTPUT;
-					r.output = arg;
-				} else {
-					expect = OPT_OUTPUT;
-				}
-				continue;
-
-			case 't':
-				if (*arg)
-					goto parse_t_arg;
-				expect = OPT_THREADS;
-				continue;
-			}
-		}
-
-		diag(pop)
-		pragma_msvc(warning(pop))
-
-		if (!r.error)
-			r.error = EINVAL;
-
-		break;
-	}
-
-	if (!r.error && (expect || args_conflict(&r)))
-		r.error = EINVAL;
-
-	if ((r.have & OPT_HELP) || r.error)
-		exit(help(argv[0], r.error));
-
-	return r;
-}
-
 static struct solver *
 solver_create (uint32_t  n_workers,
                int      *err)
@@ -941,52 +741,8 @@ main (int   argc,
 		return EXIT_FAILURE;
 	}
 
-	if (!(a.have & (OPT_BENCHMARK | OPT_OUTPUT)))
-		a.output = "dbs26.bin";
-
 	solver_solve(s, a.output);
 	solver_destroy(&s);
 
 	return EXIT_SUCCESS;
-}
-
-static int
-help (char const *argv0,
-      int         error)
-{
-	if (error)
-		(void)fprintf(stderr, "%s: %s\n", argv0, strerror(error));
-
-	(void)fprintf(stderr,
-	              "Usage: %s [-o <file>] [-t <n>]"
-	              "\n       %s -b [-t <n>]"
-	              "\n       %s -h"
-	              "\n"
-	              "\nGenerates all binary De Bruijn sequences with subsequence"
-	              "\nlength 6 (all 67108864 of them)."
-	              "\n"
-	              "\nOptions:"
-	              "\n  -h, --help            Show the help you are now reading"
-	              "\n  -b, --benchmark       Only benchmark, don't output data"
-	              "\n  -o, --output <file>   Save output to <file> (dbs26.bin)"
-	              "\n  -t, --threads <n>     Use <n> threads (available cores)"
-	              "\n"
-	              "\nWhen no arguments are given, computes the sequences using"
-	              "\nall available logical CPUs and saves them to a file named"
-	              "\ndbs26.bin in the current directory. Output data is always"
-	              "\nraw binary uint64_t data in the native endianness."
-	              "\n"
-	              "\nSpecifying the output file as a dash ('-') will print the"
-	              "\nsequences to standard output in binary mode. Only do this"
-	              "\nwhen redirecting the output to a file or another program."
-	              "\n"
-	              "\nOn systems where xxd is available you can view the output"
-	              "\nwith the following (or similar) command:"
-	              "\n"
-	              "\n  %s -o- | xxd -e -g8 | less"
-	              "\n"
-	              "\nNote: the size of the raw output is 512 MiB - be careful!"
-	              "\n", argv0, argv0, argv0, argv0);
-
-	return error ? EXIT_FAILURE : EXIT_SUCCESS;
 }
