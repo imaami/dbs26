@@ -41,14 +41,6 @@ pragma_msvc(warning(disable: 4711))
 // Silence warning about Spectre mitigation on memory load
 pragma_msvc(warning(disable: 5045))
 
-diag_clang(ignored "-Wunknown-warning-option")
-diag_clang(ignored "-Wdeclaration-after-statement")
-diag_clang(ignored "-Wdocumentation-unknown-command")
-diag_clang(ignored "-Wpre-c11-compat")
-diag_clang(ignored "-Wpre-c23-compat")
-diag_clang(ignored "-Wpre-c2x-compat")
-diag_clang(ignored "-Wunsafe-buffer-usage")
-
 #define container_of(ptr, T, member) ((T *)(void *)( \
   (unsigned char *)(1 ? (ptr) : &((T *)0)->member) - offsetof(T, member) \
 ))
