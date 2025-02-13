@@ -24,11 +24,11 @@
 # if clang_older_than_version(13)
 diag_clang(push)
 diag_clang(ignored "-Wreserved-id-macro")
-# endif // clang_older_than_version(13)
+# endif // __clang_major__ < 13
 # define _POSIX_C_SOURCE 199309L
 # if clang_older_than_version(13)
 diag_clang(pop)
-# endif // clang_older_than_version(13)
+# endif // __clang_major__ < 13
 #endif // !_WIN32 && __STRICT_ANSI__ && !_POSIX_C_SOURCE
 
 #undef HAVE_C23_BOOL
