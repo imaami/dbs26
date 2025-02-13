@@ -63,6 +63,10 @@ diag_clang(ignored "-Wdocumentation-unknown-command")
 diag_clang(ignored "-Wdeclaration-after-statement")
 #endif // __clang_major__ >= 14
 
+#if clang_at_least_version(16)
+diag_clang(ignored "-Wunsafe-buffer-usage")
+#endif // __clang_major__ >= 16
+
 #if __STDC_VERSION__ >= 202000L
 # if clang_at_least_version(16) && clang_older_than_version(18)
 diag_clang(ignored "-Wpre-c2x-compat")

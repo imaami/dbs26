@@ -54,10 +54,19 @@ args (int const            argc,
 		.error = 0
 	};
 
+	if (!argv) {
+		r.error = EFAULT;
+		goto done;
+	}
+
 	enum opt expect = OPT_NONE;
 
 	for (int i = 0; ++i < argc; ) {
 		char *arg = argv[i];
+		if (!arg) {
+			r.error = EFAULT;
+			break;
+		}
 
 		// Silence warnings about missing default and enum cases
 		diag(push)
@@ -179,6 +188,7 @@ args (int const            argc,
 	if (!(r.have & (OPT_BENCHMARK | OPT_OUTPUT)))
 		r.output = "dbs26.bin";
 
+done:
 	return r;
 }
 
