@@ -55,4 +55,33 @@ diag_clang(pop)
 #undef HAVE_C23_BOOL
 #undef HAVE_C23_NULLPTR
 
+#if clang_older_than_version(10)
+diag_clang(ignored "-Wdocumentation-unknown-command")
+#endif // __clang_major__ < 10
+
+#if clang_at_least_version(14)
+diag_clang(ignored "-Wdeclaration-after-statement")
+#endif // __clang_major__ >= 14
+
+#if __STDC_VERSION__ >= 202000L
+# if clang_at_least_version(16) && clang_older_than_version(18)
+diag_clang(ignored "-Wpre-c2x-compat")
+# endif // 16 <= __clang_major__ < 18
+# if clang_at_least_version(18)
+diag_clang(ignored "-Wpre-c23-compat")
+# endif // __clang_major__ >= 18
+#endif // __STDC_VERSION__ >= 202000L
+
+#if clang_at_least_version(19)
+diag_clang(ignored "-Wpre-c11-compat")
+#endif // __clang_major__ >= 19
+
+#ifndef _MSC_VER
+# define force_inline __attribute__((always_inline)) inline
+# define const_inline __attribute__((const)) force_inline
+#else // _MSC_VER
+# define force_inline __forceinline
+# define const_inline __forceinline
+#endif // _MSC_VER
+
 #endif /* DBS26_SRC_COMPAT_H_ */
