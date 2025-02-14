@@ -90,7 +90,7 @@ Note: the size of the raw output is 512 MiB - be careful!
 #### GCC 14 and later
 
 ```sh
-gcc -std=gnu23 -DNDEBUG=1 -Wall -Wextra -Wpedantic -O3 -flto=auto -march=native -mtune=native -o dbs26 src/dbs26.c
+gcc -std=gnu23 -DNDEBUG=1 -Wall -Wextra -Wpedantic -O3 -flto=auto -march=native -mtune=native -o dbs26 src/args.c src/dbs26.c
 ```
 
 #### GCC 13 and older
@@ -103,7 +103,7 @@ GCC 7.5.0 (which is the oldest I've tested) requires `-std=gnu11`, GCC
 #### Clang 18 and later
 
 ```sh
-clang -std=gnu23 -DNDEBUG=1 -Wall -Wextra -Wpedantic -Weverything -O3 -flto=full -fuse-ld=lld -march=native -mtune=native -o dbs26 src/dbs26.c
+clang -std=gnu23 -DNDEBUG=1 -Wall -Wextra -Wpedantic -Weverything -O3 -flto=full -fuse-ld=lld -march=native -mtune=native -o dbs26 src/args.c src/dbs26.c
 ```
 
 #### Clang 17 and older
@@ -117,7 +117,7 @@ older than that require `-std=gnu17`. The oldest I've tested is 6.0.1.
 #### MSVC (as recent of a version as possible)
 
 ```pwsh
-cl /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /favor:AMD64 /arch:AVX2 /MT /Fe: dbs26.exe src/dbs26.c
+cl /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /favor:AMD64 /arch:AVX2 /MT /Fe: dbs26.exe src/args.c src/dbs26.c
 ```
 
 Note: you'll see some compiler warnings with MSVC. They're valid but
