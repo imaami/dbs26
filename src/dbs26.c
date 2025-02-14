@@ -9,7 +9,6 @@
 
 #include <errno.h>
 #include <inttypes.h>
-#include <limits.h>
 #include <stdatomic.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -29,11 +28,8 @@
 # include <profileapi.h>
 #endif
 
-#ifdef _MSC_VER
-# include <intrin.h>
-#endif
-
 #include "args.h"
+#include "bits.h"
 
 // Wow thanks for letting me know you inlined and/or didn't
 pragma_msvc(warning(disable: 4710))
@@ -47,89 +43,6 @@ pragma_msvc(warning(disable: 5045))
 ))
 
 #define countof(x) (sizeof (x) / sizeof (x)[0])
-
-#ifndef _MSC_VER
-# define all_bits_set(x) (_Generic((x) \
-  , int: ~0                            \
-  , long: ~0L                          \
-  , long long: ~0LL                    \
-  , unsigned int: ~0U                  \
-  , unsigned long: ~0UL                \
-  , unsigned long long: ~0ULL) == (x))
-
-# define pick_clz(x) _Generic((x)      \
-  , int: __builtin_clz                 \
-  , long: __builtin_clzl               \
-  , long long: __builtin_clzll         \
-  , unsigned int: __builtin_clz        \
-  , unsigned long: __builtin_clzl      \
-  , unsigned long long: __builtin_clzll)
-
-# define pick_ctz(x) _Generic((x)      \
-  , int: __builtin_ctz                 \
-  , long: __builtin_ctzl               \
-  , long long: __builtin_ctzll         \
-  , unsigned int: __builtin_ctz        \
-  , unsigned long: __builtin_ctzl      \
-  , unsigned long long: __builtin_ctzll)
-
-# define unsigned_not(x) _Generic((x)  \
-  , default: ~(x)                      \
-  , int: (unsigned int)~(x)            \
-  , long: (unsigned long)~(x)          \
-  , long long: (unsigned long long)~(x))
-
-# define count_msb_1(x) (unsigned)(all_bits_set(x) \
-  ? (int)sizeof(x) * CHAR_BIT : pick_clz(x)(unsigned_not(x)))
-# define count_lsb_1(x) (unsigned)(all_bits_set(x) \
-  ? (int)sizeof(x) * CHAR_BIT : pick_ctz(x)(unsigned_not(x)))
-
-#else // _MSC_VER
-# define count_msb_1(x) _Generic((x)        \
-  , uint32_t: u32_count_msb_1(x)            \
-  , uint64_t: u64_count_msb_1(x)            \
-  , int32_t: u32_count_msb_1((uint32_t)(x)) \
-  , int64_t: u64_count_msb_1((uint64_t)(x)))
-
-# define count_lsb_1(x) _Generic((x)        \
-  , uint32_t: u32_count_lsb_1(x)            \
-  , uint64_t: u64_count_lsb_1(x)            \
-  , int32_t: u32_count_lsb_1((uint32_t)(x)) \
-  , int64_t: u64_count_lsb_1((uint64_t)(x)))
-
-pragma_msvc(intrinsic(_BitScanForward))
-pragma_msvc(intrinsic(_BitScanReverse))
-pragma_msvc(intrinsic(_BitScanForward64))
-pragma_msvc(intrinsic(_BitScanReverse64))
-
-static force_inline unsigned
-u32_count_msb_1 (uint32_t x)
-{
-	unsigned long pos = 0;
-	return _BitScanReverse(&pos, ~x) ? 31U - (unsigned)pos : 32U;
-}
-
-static force_inline unsigned
-u32_count_lsb_1 (uint32_t x)
-{
-	unsigned long pos = 0;
-	return _BitScanForward(&pos, ~x) ? (unsigned)pos : 32U;
-}
-
-static force_inline unsigned
-u64_count_msb_1 (uint64_t x)
-{
-	unsigned long pos = 0;
-	return _BitScanReverse64(&pos, ~x) ? 63U - (unsigned)pos : 64U;
-}
-
-static force_inline unsigned
-u64_count_lsb_1 (uint64_t x)
-{
-	unsigned long pos = 0;
-	return _BitScanForward64(&pos, ~x) ? (unsigned)pos : 64U;
-}
-#endif // _MSC_VER
 
 #define SUB_LEN 6U
 #define SEQ_LEN (1U << SUB_LEN)
