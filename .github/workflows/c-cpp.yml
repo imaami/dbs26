@@ -10,19 +10,18 @@ env:
   __c_src: args.c dbs26.c
   __bin: dbs26
   __builddir: ${{ github.workspace }}/build
-  __out: ${{ github.env.__builddir }}/${{ github.env.__bin }}
-  __destdir: ${{ github.env.__builddir }}/out
+  __msvc_git: ${{ github.workspace }}/msvc
   __srcdir: ${{ github.workspace }}/src
-  __exe: ${{ github.env.__out }}
 
 jobs:
   build-ubuntu-24_04:
+    runs-on: ubuntu-24.04
     env:
-      __msvc_git: ${{ github.workspace }}/msvc
+      __out: ${{ github.env.__builddir }}/${{ github.env.__bin }}
+      __destdir: ${{ github.env.__builddir }}/out
+      __exe: ${{ github.env.__out }}
       __msvc_sdk: ${{ github.env.__msvc_git }}/sdk
       __msvc_bin: ${{ github.env.__msvc_sdk }}/bin/x64
-
-    runs-on: ubuntu-24.04
     steps:
     - name: Add apt.llvm.org
       run: |
