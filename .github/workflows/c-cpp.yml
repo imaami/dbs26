@@ -6,8 +6,22 @@ on:
   pull_request:
     branches: [ "main" ]
 
+env:
+  __c_src: args.c dbs26.c
+  __bin: dbs26
+  __builddir: ${{ github.workspace }}/build
+  __out: ${{ github.env.__builddir }}/${{ github.env.__bin }}
+  __destdir: ${{ github.env.__builddir }}/out
+  __srcdir: ${{ github.workspace }}/src
+  __exe: ${{ github.env.__out }}
+
 jobs:
   build-ubuntu-24_04:
+    env:
+      __msvc_git: ${{ github.workspace }}/msvc
+      __msvc_sdk: ${{ github.env.__msvc_git }}/sdk
+      __msvc_bin: ${{ github.env.__msvc_sdk }}/bin/x64
+
     runs-on: ubuntu-24.04
     steps:
     - name: Add apt.llvm.org
@@ -38,21 +52,9 @@ jobs:
 
     - uses: actions/checkout@v4
 
-    - name: Clone msvc-wine
-      uses: actions/checkout@v4
-      with:
-        repository: mstorsjo/msvc-wine
-        path: msvc
-        ref: master
-
     - name: Set environment
       shell: bash
       run: |
-        mkdir -p msvc/sdk
-        __csrc=( \
-          args   \
-          dbs26  \
-        )
         __cflags=(         \
           -std=gnu23       \
           -O3              \
@@ -67,10 +69,14 @@ jobs:
           -DNDEBUG=1       \
         )
         echo "__cflags=${__cflags[@]}" >> "$GITHUB_ENV"
-        echo "__src=${__csrc[@]/%/.c}" >> "$GITHUB_ENV"
-        echo "__srcdir=$(realpath -e src)" >> "$GITHUB_ENV"
-        echo "__winsdk=$(realpath -e msvc/sdk)" >> "$GITHUB_ENV"
         echo "ncpu=$((n = $(nproc)+0, n > 0 ? n : 1))" >> "$GITHUB_ENV"
+
+    - name: Clone msvc-wine
+      uses: actions/checkout@v4
+      with:
+        repository: mstorsjo/msvc-wine
+        path: github.env.__msvc_git
+        ref: master
 
     - name: Get available compilers
       shell: bash
@@ -103,65 +109,65 @@ jobs:
 
     - name: Compile for Linux
       shell: bash
+      working-directory: github.env.__srcdir
       run: |
-        __out=dbs26
-        __outdir="${PWD%/}"
-        pushd "$__srcdir" >/dev/null
-        clang-21 $__cflags -o "$__out" $__src
+        clang-21 $__cflags -o "$__out" $__c_src
         strip --strip-all "$__out"
-        mv "$__out" "$__outdir/"
-        popd >/dev/null
 
     - name: Archive Linux binary
       uses: actions/upload-artifact@v4
       with:
         name: dbs26-linux
         path: |
-          dbs26
+          github.env.__out
           LICENSE
           README.md
 
     - name: Install Windows SDK
       shell: bash
       run: |
-        msvc/vsdownload.py --accept-license --dest "$__winsdk"
-        msvc/install.sh "$__winsdk"
+        mkdir -p "$__msvc_sdk"
+        "$__msvc_git/vsdownload.py" --accept-license --dest "$__msvc_sdk"
+        "$__msvc_git/install.sh" "$__msvc_sdk"
 
     - name: Compile for Windows
+      env:
+        __bin: dbs26.exe
+        BIN: github.env.__msvc_bin
       shell: bash
+      working-directory: github.env.__srcdir
       run: |
-        __out=dbs26.exe
-        __outdir="${PWD%/}"
-        pushd "$__srcdir" >/dev/null
-        BIN="$__winsdk/bin/x64" . "$__outdir/msvc/msvcenv-native.sh"
-        clang-21 $__cflags --target=x86_64-windows-msvc -o "$__out" $__src
-        mv "$__out" "$__outdir/"
-        popd >/dev/null
+        . "$__msvc_git/msvcenv-native.sh"
+        clang-21 $__cflags --target=x86_64-windows-msvc -o "$__out" $__c_src
 
     - name: Archive Windows binary
+      env:
+        __bin: dbs26.exe
       uses: actions/upload-artifact@v4
       with:
         name: dbs26-windows
         path: |
-          dbs26.exe
+          github.env.__out
           LICENSE
           README.md
 
     - name: Verify Linux binary output
       shell: bash
       run: |
-        ./dbs26 -o- | sha1sum
-        ./dbs26
-        sha1sum dbs26.bin
-        rm -f dbs26.bin
+        "$__exe" -o- | sha1sum
+        "$__exe" -o "$RUNNER_TEMP/test.bin"
+        sha1sum "$RUNNER_TEMP/test.bin"
+        rm -f "$RUNNER_TEMP/test.bin"
 
     - name: Verify Windows binary output
+      env:
+        __exe: WINEDEBUG=-all wine64 ${{ github.env.__exe }}
       shell: bash
       run: |
-        WINEDEBUG=-all wine64 ./dbs26.exe -o- | sha1sum
-        WINEDEBUG=-all wine64 ./dbs26.exe
-        sha1sum dbs26.bin
-        rm -f dbs26.bin
+        "$__exe" -o- | sha1sum
+        "$__exe" -o "$RUNNER_TEMP/test.bin"
+        sha1sum "$RUNNER_TEMP/test.bin"
+        rm -f "$RUNNER_TEMP/test.bin"
 
   build-macos-15:
     runs-on: macos-15
@@ -194,10 +200,6 @@ jobs:
     - name: Set environment
       shell: bash
       run: |
-        __csrc=( \
-          args   \
-          dbs26  \
-        )
         __cflags=(         \
           -std=gnu2x       \
           -O3              \
@@ -209,8 +211,6 @@ jobs:
           -DNDEBUG=1       \
         )
         echo "__cflags=${__cflags[@]}" >> "$GITHUB_ENV"
-        echo "__src=${__csrc[@]/%/.c}" >> "$GITHUB_ENV"
-        echo "__srcdir=$(realpath -e src)" >> "$GITHUB_ENV"
         echo "ncpu=$(sysctl -n hw.logicalcpu)" >> "$GITHUB_ENV"
 
     - name: Get available compilers
@@ -244,33 +244,29 @@ jobs:
 
     - name: Compile for macOS
       shell: bash
+      working-directory: ${{ github.env.__srcdir }}
       run: |
-        __out=dbs26
-        __outdir="${PWD%/}"
-        pushd "$__srcdir" >/dev/null
-        __obj=''
-        for __a in arm64 x86_64; do
-          __o="$__out-$__a"
-          clang -arch "$__a" $__cflags -o "$__o" $__src
-          __obj="$__obj $__o"
+        __obj=()
+        for a in arm64 x86_64; do
+          clang -arch "$a" $__cflags -o "$__out-$a" $__c_src
+          __obj=("${__obj[@]}" "$(basename "$__out-$a")")
         done
-        lipo -create -output "$__out" $__obj
-        mv "$__out" "$__outdir/"
-        popd >/dev/null
+        cd "$__builddir"
+        lipo -create -output "$__bin" "${__obj[@]}"
 
     - name: Archive macOS binary
       uses: actions/upload-artifact@v4
       with:
         name: dbs26-macos
         path: |
-          dbs26
+          github.env.__out
           LICENSE
           README.md
 
     - name: Verify macOS binary output
       run: |
-        arch -arm64 ./dbs26 -o- | sha1sum
-        arch -x86_64 ./dbs26 -o- | sha1sum
-        ./dbs26
-        sha1sum dbs26.bin
-        rm -f dbs26.bin
+        arch -arm64 "$__exe" -o- | sha1sum
+        arch -x86_64 "$__exe" -o- | sha1sum
+        "$__exe" -o "$RUNNER_TEMP/test.bin"
+        sha1sum "$RUNNER_TEMP/test.bin"
+        rm -f "$RUNNER_TEMP/test.bin"
