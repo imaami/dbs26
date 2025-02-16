@@ -104,8 +104,13 @@ jobs:
     - name: Compile for Linux
       shell: bash
       run: |
-        clang-21 -working-directory "$__srcdir" $__cflags $__src -o ../dbs26
-        strip --strip-all dbs26
+        __out=dbs26
+        __outdir="${PWD%/}"
+        pushd "$__srcdir" >/dev/null
+        clang-21 $__cflags -o "$__out" $__src
+        strip --strip-all "$__out"
+        mv "$__out" "$__outdir/"
+        popd >/dev/null
 
     - name: Archive Linux binary
       uses: actions/upload-artifact@v4
@@ -125,9 +130,13 @@ jobs:
     - name: Compile for Windows
       shell: bash
       run: |
-        BIN="$__winsdk/bin/x64" . msvc/msvcenv-native.sh
-        clang-21 -working-directory "$__srcdir" $__cflags \
-                 --target=x86_64-windows-msvc $__src -o ../dbs26.exe
+        __out=dbs26.exe
+        __outdir="${PWD%/}"
+        pushd "$__srcdir" >/dev/null
+        BIN="$__winsdk/bin/x64" . "$__outdir/msvc/msvcenv-native.sh"
+        clang-21 $__cflags --target=x86_64-windows-msvc -o "$__out" $__src
+        mv "$__out" "$__outdir/"
+        popd >/dev/null
 
     - name: Archive Windows binary
       uses: actions/upload-artifact@v4
@@ -236,13 +245,18 @@ jobs:
     - name: Compile for macOS
       shell: bash
       run: |
-        __outdir="${PWD%/}/"
+        __out=dbs26
+        __outdir="${PWD%/}"
         pushd "$__srcdir" >/dev/null
-        clang -arch arm64 $__cflags -o dbs26-arm64 $__src
-        clang -arch x86_64 $__cflags -o dbs26-x86_64 $__src
-        mv dbs26-{arm64,x86_64} "$__outdir"
+        __obj=''
+        for __a in arm64 x86_64; do
+          __o="$__out-$__a"
+          clang -arch "$__a" $__cflags -o "$__o" $__src
+          __obj="$__obj $__o"
+        done
+        lipo -create -output "$__out" $__obj
+        mv "$__out" "$__outdir/"
         popd >/dev/null
-        lipo -create -output dbs26{,-arm64,-x86_64}
 
     - name: Archive macOS binary
       uses: actions/upload-artifact@v4
