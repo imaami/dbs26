@@ -17,11 +17,11 @@ jobs:
   build-ubuntu-24_04:
     runs-on: ubuntu-24.04
     env:
-      __out: ${{ env.__builddir }}/${{ env.__bin }}
-      __destdir: ${{ env.__builddir }}/out
-      __exe: ${{ env.__out }}
-      __msvc_sdk: ${{ env.__msvc_git }}/sdk
-      __msvc_bin: ${{ env.__msvc_sdk }}/bin/x64
+      __out: ${{ github.env.__builddir }}/${{ github.env.__bin }}
+      __destdir: ${{ github.env.__builddir }}/out
+      __exe: ${{ github.env.__out }}
+      __msvc_sdk: ${{ github.env.__msvc_git }}/sdk
+      __msvc_bin: ${{ github.env.__msvc_sdk }}/bin/x64
     steps:
     - name: Add apt.llvm.org
       run: |
