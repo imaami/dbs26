@@ -26,7 +26,7 @@ jobs:
         __exe: ${{ env.__builddir }}/${{ env.__bin }}
         __out: ${{ env.__builddir }}/${{ env.__bin }}
         __msvc_sdk: ${{ env.__msvc_git }}/sdk
-       run: echo "$__destdir"
+      run: echo "$__destdir"
 
     - name: Add apt.llvm.org
       run: |
