@@ -10,10 +10,6 @@ defaults:
   run:
     shell: bash
 
-env:
-  __bin: dbs26
-  __c_src: args.c dbs26.c
-
 jobs:
   build-ubuntu-24_04:
     runs-on: ${{ matrix.os }}
@@ -21,17 +17,20 @@ jobs:
       matrix:
         include:
           - os: ubuntu-24.04
-            msvc_git: ${{ github.workspace }}/msvc
-            build_dir: ${{ github.workspace }}/build
-            src_dir: ${{ github.workspace }}/src
-            bin: ${{ github.env.__bin }}
+            msvc_path: msvc
+            build_path: build
+            dest_path: build/dest
+            src_path: src
+            bin: dbs26
+            c_src: args.c dbs26.c
     env:
-      __msvc_git: ${{ matrix.msvc_git }}
-      __builddir: ${{ matrix.build_dir }}
-      __srcdir: ${{ matrix.src_dir }}
-      __destdir: ${{ matrix.build_dir }}/dest
-      __exe: ${{ matrix.build_dir }}/${{ matrix.bin }}
-      __out: ${{ matrix.build_dir }}/${{ matrix.bin }}
+      __msvc_git: ${{ github.workspace }}/${{ matrix.msvc_path }}
+      __builddir: ${{ github.workspace }}/${{ matrix.build_path }}
+      __srcdir: ${{ github.workspace }}/${{ matrix.src_path }}
+      __destdir: ${{ github.workspace }}/${{ matrix.dest_path }}
+      __exe: ${{ github.workspace }}/${{ matrix.build_path }}/${{ matrix.bin }}
+      __out: ${{ github.job.build-ubuntu-24_04.env.__exe }}
+      __c_src: ${{ matrix.c_src }}
     steps:
     - name: env
       env:
