@@ -6,10 +6,37 @@ on:
   pull_request:
     branches: [ "main" ]
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   build-ubuntu-24_04:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            msvc_path: msvc
+            build_path: build
+            dest_path: build/dest
+            src_path: src
+            bin: dbs26
+            c_src: args.c dbs26.c
+    env:
+      __msvc_git: ${{ github.workspace }}/${{ matrix.msvc_path }}
+      __builddir: ${{ github.workspace }}/${{ matrix.build_path }}
+      __srcdir: ${{ github.workspace }}/${{ matrix.src_path }}
+      __destdir: ${{ github.workspace }}/${{ matrix.dest_path }}
+      __exe: ${{ github.workspace }}/${{ matrix.build_path }}/${{ matrix.bin }}
+      __out: ${{ github.job.build-ubuntu-24_04.env.__exe }}
+      __c_src: ${{ matrix.c_src }}
     steps:
+    - name: env
+      env:
+        __msvc_sdk: ${{ env.__msvc_git }}/sdk
+      run: echo "$__destdir"
+
     - name: Add apt.llvm.org
       run: |
         printf -- 'deb http://apt.llvm.org/noble/ llvm-toolchain-noble%s main\n' '' | sudo tee /etc/apt/sources.list.d/apt.llvm.org.list
@@ -38,21 +65,8 @@ jobs:
 
     - uses: actions/checkout@v4
 
-    - name: Clone msvc-wine
-      uses: actions/checkout@v4
-      with:
-        repository: mstorsjo/msvc-wine
-        path: msvc
-        ref: master
-
     - name: Set environment
-      shell: bash
       run: |
-        mkdir -p msvc/sdk
-        __csrc=( \
-          args   \
-          dbs26  \
-        )
         __cflags=(         \
           -std=gnu23       \
           -O3              \
@@ -67,13 +81,16 @@ jobs:
           -DNDEBUG=1       \
         )
         echo "__cflags=${__cflags[@]}" >> "$GITHUB_ENV"
-        echo "__src=${__csrc[@]/%/.c}" >> "$GITHUB_ENV"
-        echo "__srcdir=$(realpath -e src)" >> "$GITHUB_ENV"
-        echo "__winsdk=$(realpath -e msvc/sdk)" >> "$GITHUB_ENV"
         echo "ncpu=$((n = $(nproc)+0, n > 0 ? n : 1))" >> "$GITHUB_ENV"
 
+    - name: Clone msvc-wine
+      uses: actions/checkout@v4
+      with:
+        repository: mstorsjo/msvc-wine
+        path: ${{ env.__msvc_git }}
+        ref: master
+
     - name: Get available compilers
-      shell: bash
       run: |
         set +e
         uname -a
@@ -102,57 +119,61 @@ jobs:
         done | tee compilers_gcc
 
     - name: Compile for Linux
-      shell: bash
+      working-directory: ${{ env.__srcdir }}
       run: |
-        clang-21 -working-directory "$__srcdir" $__cflags $__src -o ../dbs26
-        strip --strip-all dbs26
+        clang-21 $__cflags -o "$__out" $__c_src
+        strip --strip-all "$__out"
 
     - name: Archive Linux binary
       uses: actions/upload-artifact@v4
       with:
         name: dbs26-linux
         path: |
-          dbs26
+          ${{ env.__out }}
           LICENSE
           README.md
 
     - name: Install Windows SDK
-      shell: bash
       run: |
-        msvc/vsdownload.py --accept-license --dest "$__winsdk"
-        msvc/install.sh "$__winsdk"
+        mkdir -p "$__msvc_sdk"
+        "$__msvc_git/vsdownload.py" --accept-license --dest "$__msvc_sdk"
+        "$__msvc_git/install.sh" "$__msvc_sdk"
 
     - name: Compile for Windows
-      shell: bash
+      env:
+        __bin: dbs26.exe
+        BIN: ${{ env.__msvc_sdk }}/bin/x64
+      working-directory: ${{ env.__srcdir }}
       run: |
-        BIN="$__winsdk/bin/x64" . msvc/msvcenv-native.sh
-        clang-21 -working-directory "$__srcdir" $__cflags \
-                 --target=x86_64-windows-msvc $__src -o ../dbs26.exe
+        . "$__msvc_git/msvcenv-native.sh"
+        clang-21 $__cflags --target=x86_64-windows-msvc -o "$__out" $__c_src
 
     - name: Archive Windows binary
+      env:
+        __bin: dbs26.exe
       uses: actions/upload-artifact@v4
       with:
         name: dbs26-windows
         path: |
-          dbs26.exe
+          ${{ env.__out }}
           LICENSE
           README.md
 
     - name: Verify Linux binary output
-      shell: bash
       run: |
-        ./dbs26 -o- | sha1sum
-        ./dbs26
-        sha1sum dbs26.bin
-        rm -f dbs26.bin
+        "$__exe" -o- | sha1sum
+        "$__exe" -o "$RUNNER_TEMP/test.bin"
+        sha1sum "$RUNNER_TEMP/test.bin"
+        rm -f "$RUNNER_TEMP/test.bin"
 
     - name: Verify Windows binary output
-      shell: bash
+      env:
+        __exe: WINEDEBUG=-all wine64 ${{ env.__exe }}
       run: |
-        WINEDEBUG=-all wine64 ./dbs26.exe -o- | sha1sum
-        WINEDEBUG=-all wine64 ./dbs26.exe
-        sha1sum dbs26.bin
-        rm -f dbs26.bin
+        "$__exe" -o- | sha1sum
+        "$__exe" -o "$RUNNER_TEMP/test.bin"
+        sha1sum "$RUNNER_TEMP/test.bin"
+        rm -f "$RUNNER_TEMP/test.bin"
 
   build-macos-15:
     runs-on: macos-15
@@ -183,12 +204,7 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Set environment
-      shell: bash
       run: |
-        __csrc=( \
-          args   \
-          dbs26  \
-        )
         __cflags=(         \
           -std=gnu2x       \
           -O3              \
@@ -200,12 +216,9 @@ jobs:
           -DNDEBUG=1       \
         )
         echo "__cflags=${__cflags[@]}" >> "$GITHUB_ENV"
-        echo "__src=${__csrc[@]/%/.c}" >> "$GITHUB_ENV"
-        echo "__srcdir=$(realpath -e src)" >> "$GITHUB_ENV"
         echo "ncpu=$(sysctl -n hw.logicalcpu)" >> "$GITHUB_ENV"
 
     - name: Get available compilers
-      shell: bash
       run: |
         set +e
         uname -a
@@ -234,29 +247,29 @@ jobs:
         done | tee compilers_gcc
 
     - name: Compile for macOS
-      shell: bash
+      working-directory: ${{ env.__srcdir }}
       run: |
-        __outdir="${PWD%/}/"
-        pushd "$__srcdir" >/dev/null
-        clang -arch arm64 $__cflags -o dbs26-arm64 $__src
-        clang -arch x86_64 $__cflags -o dbs26-x86_64 $__src
-        mv dbs26-{arm64,x86_64} "$__outdir"
-        popd >/dev/null
-        lipo -create -output dbs26{,-arm64,-x86_64}
+        __obj=()
+        for a in arm64 x86_64; do
+          clang -arch "$a" $__cflags -o "$__out-$a" $__c_src
+          __obj=("${__obj[@]}" "$(basename "$__out-$a")")
+        done
+        cd "$__builddir"
+        lipo -create -output "$__bin" "${__obj[@]}"
 
     - name: Archive macOS binary
       uses: actions/upload-artifact@v4
       with:
         name: dbs26-macos
         path: |
-          dbs26
+          ${{ env.__out }}
           LICENSE
           README.md
 
     - name: Verify macOS binary output
       run: |
-        arch -arm64 ./dbs26 -o- | sha1sum
-        arch -x86_64 ./dbs26 -o- | sha1sum
-        ./dbs26
-        sha1sum dbs26.bin
-        rm -f dbs26.bin
+        arch -arm64 "$__exe" -o- | sha1sum
+        arch -x86_64 "$__exe" -o- | sha1sum
+        "$__exe" -o "$RUNNER_TEMP/test.bin"
+        sha1sum "$RUNNER_TEMP/test.bin"
+        rm -f "$RUNNER_TEMP/test.bin"
