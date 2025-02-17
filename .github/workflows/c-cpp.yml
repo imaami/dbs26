@@ -6,25 +6,35 @@ on:
   pull_request:
     branches: [ "main" ]
 
+defaults:
+  run:
+    shell: bash
+
 env:
   __bin: dbs26
   __c_src: args.c dbs26.c
-  __builddir: ${{ github.workspace }}/build
-  __srcdir: ${{ github.workspace }}/src
 
 jobs:
   build-ubuntu-24_04:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            msvc_git: ${{ github.workspace }}/msvc
+            build_dir: ${{ github.workspace }}/build
+            src_dir: ${{ github.workspace }}/src
+            bin: ${{ github.env.__bin }}
     env:
-      __msvc_git: ${{ github.workspace }}/msvc
-      __destdir: ${{ github.env.__builddir }}/dest
-      __exe: ${{ github.env.__builddir }}/${{ github.env.__bin }}
-      __out: ${{ github.env.__builddir }}/${{ github.env.__bin }}
-    runs-on: ubuntu-24.04
+      __msvc_git: ${{ matrix.msvc_git }}
+      __builddir: ${{ matrix.build_dir }}
+      __srcdir: ${{ matrix.src_dir }}
+      __destdir: ${{ matrix.build_dir }}/dest
+      __exe: ${{ matrix.build_dir }}/${{ matrix.bin }}
+      __out: ${{ matrix.build_dir }}/${{ matrix.bin }}
     steps:
     - name: env
       env:
-        __exe: ${{ env.__builddir }}/${{ env.__bin }}
-        __out: ${{ env.__builddir }}/${{ env.__bin }}
         __msvc_sdk: ${{ env.__msvc_git }}/sdk
       run: echo "$__destdir"
 
@@ -57,7 +67,6 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Set environment
-      shell: bash
       run: |
         __cflags=(         \
           -std=gnu23       \
@@ -83,7 +92,6 @@ jobs:
         ref: master
 
     - name: Get available compilers
-      shell: bash
       run: |
         set +e
         uname -a
@@ -112,7 +120,6 @@ jobs:
         done | tee compilers_gcc
 
     - name: Compile for Linux
-      shell: bash
       working-directory: ${{ env.__srcdir }}
       run: |
         clang-21 $__cflags -o "$__out" $__c_src
@@ -128,7 +135,6 @@ jobs:
           README.md
 
     - name: Install Windows SDK
-      shell: bash
       run: |
         mkdir -p "$__msvc_sdk"
         "$__msvc_git/vsdownload.py" --accept-license --dest "$__msvc_sdk"
@@ -138,7 +144,6 @@ jobs:
       env:
         __bin: dbs26.exe
         BIN: ${{ env.__msvc_sdk }}/bin/x64
-      shell: bash
       working-directory: ${{ env.__srcdir }}
       run: |
         . "$__msvc_git/msvcenv-native.sh"
@@ -156,7 +161,6 @@ jobs:
           README.md
 
     - name: Verify Linux binary output
-      shell: bash
       run: |
         "$__exe" -o- | sha1sum
         "$__exe" -o "$RUNNER_TEMP/test.bin"
@@ -166,7 +170,6 @@ jobs:
     - name: Verify Windows binary output
       env:
         __exe: WINEDEBUG=-all wine64 ${{ env.__exe }}
-      shell: bash
       run: |
         "$__exe" -o- | sha1sum
         "$__exe" -o "$RUNNER_TEMP/test.bin"
@@ -202,7 +205,6 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Set environment
-      shell: bash
       run: |
         __cflags=(         \
           -std=gnu2x       \
@@ -218,7 +220,6 @@ jobs:
         echo "ncpu=$(sysctl -n hw.logicalcpu)" >> "$GITHUB_ENV"
 
     - name: Get available compilers
-      shell: bash
       run: |
         set +e
         uname -a
@@ -247,7 +248,6 @@ jobs:
         done | tee compilers_gcc
 
     - name: Compile for macOS
-      shell: bash
       working-directory: ${{ env.__srcdir }}
       run: |
         __obj=()
