@@ -6,74 +6,125 @@ on:
   pull_request:
     branches: [ "main" ]
 
+defaults:
+  run:
+    shell: bash
+
+env:
+  __c_src: args.c dbs26.c
+  __build_path: build
+  __dest_path: dest
+  __src_path: src
+  __nproc: nproc
+  __cc: clang-21
+  __cflags: -std=gnu23 -flto=full -fuse-ld=lld -O3 -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1 -march=x86-64-v3 -mtune=znver3
+
 jobs:
-  build-ubuntu-24_04:
-    runs-on: ubuntu-24.04
+  build:
+    runs-on: ${{ matrix.on == 'macos' && 'macos-15' || 'ubuntu-24.04' }}
+    strategy:
+      matrix:
+        os: [ linux, macos, windows ]
+        include:
+          - os: linux
+            on: linux
+          - os: macos
+            on: macos
+          - os: windows
+            on: linux
+    env:
+      __executable: dbs26${{ matrix.os == 'windows' && '.exe' || '' }}
     steps:
-    - name: Add apt.llvm.org
+    - name: Install system updates
       run: |
-        printf -- 'deb http://apt.llvm.org/noble/ llvm-toolchain-noble%s main\n' '' | sudo tee /etc/apt/sources.list.d/apt.llvm.org.list
-        wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
-
-    - name: Upgrade packages
-      run: |
-        sudo apt-get update
-        sudo apt-get upgrade -y
-
-    - name: Upgrade Clang
-      run: |
-        sudo apt-get install clang clang-21 lld lld-21 llvm-21-linker-tools || true
-
-    - name: Add dl.winehq.org
-      run: |
-        sudo dpkg --add-architecture i386
+        ${{ matrix.on == 'linux' && '
+        printf "deb http://apt.llvm.org/%s/ %s %s\n" \
+               noble llvm-toolchain-noble main \
+        | sudo tee /etc/apt/sources.list.d/apt.llvm.org.list
+        wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
+        | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc' || '' }}
+        ${{ matrix.on == 'linux' && matrix.os == 'windows' && '
         sudo mkdir -pm755 /etc/apt/keyrings
-        wget -qO - https://dl.winehq.org/wine-builds/winehq.key | sudo gpg --dearmor -o /etc/apt/keyrings/winehq-archive.key -
-        sudo wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/noble/winehq-noble.sources
+        wget -qO- https://dl.winehq.org/wine-builds/winehq.key \
+        | sudo gpg --dearmor -o /etc/apt/keyrings/winehq-archive.key -
+        wget -qO- https://dl.winehq.org/wine-builds/ubuntu/dists/noble/winehq-noble.sources \
+        | sudo tee /etc/apt/sources.list.d/winehq.sources
+        cat /etc/apt/sources.list.d/winehq.sources
+        sudo dpkg --add-architecture i386' || '' }}
+        ${{ matrix.on == 'linux' && 'sudo apt-get update
+        sudo apt-get upgrade -y' || '' }}
+        ${{ matrix.on == 'macos' && 'set +e
+        brew update
+        brew upgrade
+        brew install bash' || '' }}
 
-    - name: Install Windows build dependencies
+    - name: Set env variables
+      env:
+        __msvc_path_linux: ${{ matrix.os == 'windows' && 'msvc' || '' }}
+        __nproc_macos: sysctl -n hw.logicalcpu
+        __cc_macos: clang
+        __cflags_macos: -std=gnu2x -flto=full -O3 -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1
       run: |
-        sudo apt-get update
-        sudo apt-get install -y --install-recommends ca-certificates msitools python3 winbind winehq-staging
+        def() {
+          set "$1" "${1}_${{ matrix.on }}"
+          if [[ "${!2}" ]]; then
+            declare -g "$1=${!2//$'\n'/ }"
+            echo "$1=${!1}" >> "$GITHUB_ENV"
+          fi
+        }
+
+        def __cc
+        def __cflags
+        def __nproc
+        ${{ matrix.on == 'linux' && matrix.os == 'windows' && 'def __msvc_path
+        [[ "$__msvc_sdk_path" ]] || {
+          __msvc_sdk_path="$__msvc_path/sdk"
+          echo "__msvc_sdk_path=$__msvc_sdk_path" >> "$GITHUB_ENV"
+        }
+        [[ "$__msvc_dir" ]] || {
+          __msvc_dir="$GITHUB_WORKSPACE/$__msvc_path"
+          echo "__msvc_dir=$__msvc_dir" >> "$GITHUB_ENV"
+        }
+        [[ "$__msvc_sdk_dir" ]] || {
+          __msvc_sdk_dir="$__msvc_dir/sdk"
+          echo "__msvc_sdk_dir=$__msvc_sdk_dir" >> "$GITHUB_ENV"
+        }' || '' }}
+        [[ "$__build_dir" ]] || {
+          __build_dir="$GITHUB_WORKSPACE/$__build_path"
+          echo "__build_dir=$__build_dir" >> "$GITHUB_ENV"
+        }
+        echo "__exe=$__build_dir/$__executable" >> "$GITHUB_ENV"
 
     - uses: actions/checkout@v4
 
     - name: Clone msvc-wine
+      if: ${{ matrix.os == 'windows' && matrix.on == 'linux' }}
       uses: actions/checkout@v4
       with:
         repository: mstorsjo/msvc-wine
-        path: msvc
+        path: ${{ env.__msvc_dir }}
         ref: master
 
-    - name: Set environment
-      shell: bash
+    - name: Install build dependencies
       run: |
-        mkdir -p msvc/sdk
-        __csrc=( \
-          args   \
-          dbs26  \
-        )
-        __cflags=(         \
-          -std=gnu23       \
-          -O3              \
-          -flto=full       \
-          -fuse-ld=lld     \
-          -march=x86-64-v3 \
-          -mtune=znver3    \
-          -Wall            \
-          -Wextra          \
-          -Wpedantic       \
-          -Weverything     \
-          -DNDEBUG=1       \
-        )
-        echo "__cflags=${__cflags[@]}" >> "$GITHUB_ENV"
-        echo "__src=${__csrc[@]/%/.c}" >> "$GITHUB_ENV"
-        echo "__srcdir=$(realpath -e src)" >> "$GITHUB_ENV"
-        echo "__winsdk=$(realpath -e msvc/sdk)" >> "$GITHUB_ENV"
-        echo "ncpu=$((n = $(nproc)+0, n > 0 ? n : 1))" >> "$GITHUB_ENV"
+        ${{ matrix.on == 'linux' && '
+        sudo apt-get install -y clang clang-21 lld \
+                     lld-21 llvm-21-linker-tools' || '' }}
+        ${{ matrix.on == 'linux' && matrix.os == 'windows' && '
+        sudo apt-get install -y --install-recommends ca-certificates \
+                     msitools python3 winbind winehq-staging' || '' }}
+        ${{ matrix.on == 'macos' && 'set +e
+        brew install coreutils gnu-sed
+        printf -vP "$(brew --prefix)/opt/%s/libexec/gnubin:" \
+               gnu-sed coreutils
+        P="${P}$PATH"
+        echo "export PATH=\"$P\"" >> "$HOME/.bash_profile"
+        echo "PATH=$P" >> "$GITHUB_ENV"' || '' }}
+        ${{ matrix.on == 'linux' && matrix.os == 'windows' && 'mkdir -p "$__msvc_sdk_dir"
+        "$__msvc_dir/vsdownload.py" --accept-license --dest "$__msvc_sdk_dir"
+        "$__msvc_dir/install.sh" "$__msvc_sdk_dir"' || '' }}
 
     - name: Get available compilers
-      shell: bash
       run: |
         set +e
         uname -a
@@ -101,162 +152,37 @@ jobs:
           printf "%-${n}s\t%s\n" "${cc_v[$_cc]}" "$_cc"
         done | tee compilers_gcc
 
-    - name: Compile for Linux
-      shell: bash
+    - name: Compile
+      working-directory: ${{ github.workspace }}/${{ env.__src_path }}
       run: |
-        clang-21 -working-directory "$__srcdir" $__cflags $__src -o ../dbs26
-        strip --strip-all dbs26
+        mkdir -p "$__build_dir"
+        ${{ matrix.os == 'linux' && '"$__cc" $__cflags -o "$__exe" $__c_src
+        strip --strip-all "$__exe"' || '' }}
+        ${{ matrix.os == 'windows' && matrix.on == 'linux' && '
+        BIN="$__msvc_sdk_dir/bin/x64" . "$__msvc_dir/msvcenv-native.sh"
+        "$__cc" --target=x86_64-windows-msvc $__cflags -o "$__exe" $__c_src' || '' }}
+        ${{ matrix.os == 'macos' && '"$__cc" -arch arm64 $__cflags -o "$__exe-arm64" $__c_src
+        "$__cc" -arch x86_64 $__cflags -o "$__exe-x86_64" $__c_src
+        lipo -create -output "$__exe" "$__exe-arm64" "$__exe-x86_64"' || '' }}
 
-    - name: Archive Linux binary
+    - name: Archive build artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: dbs26-linux
+        name: dbs26-${{ matrix.os }}
         path: |
-          dbs26
+          ${{ env.__executable }}
           LICENSE
           README.md
 
-    - name: Install Windows SDK
-      shell: bash
+    - name: Verify binary output
       run: |
-        msvc/vsdownload.py --accept-license --dest "$__winsdk"
-        msvc/install.sh "$__winsdk"
-
-    - name: Compile for Windows
-      shell: bash
-      run: |
-        BIN="$__winsdk/bin/x64" . msvc/msvcenv-native.sh
-        clang-21 -working-directory "$__srcdir" $__cflags \
-                 --target=x86_64-windows-msvc $__src -o ../dbs26.exe
-
-    - name: Archive Windows binary
-      uses: actions/upload-artifact@v4
-      with:
-        name: dbs26-windows
-        path: |
-          dbs26.exe
-          LICENSE
-          README.md
-
-    - name: Verify Linux binary output
-      shell: bash
-      run: |
-        ./dbs26 -o- | sha1sum
-        ./dbs26
-        sha1sum dbs26.bin
-        rm -f dbs26.bin
-
-    - name: Verify Windows binary output
-      shell: bash
-      run: |
-        WINEDEBUG=-all wine64 ./dbs26.exe -o- | sha1sum
-        WINEDEBUG=-all wine64 ./dbs26.exe
-        sha1sum dbs26.bin
-        rm -f dbs26.bin
-
-  build-macos-15:
-    runs-on: macos-15
-    steps:
-    - name: Install updates
-      run: |
-        set +e
-        echo "bash $BASH_VERSION"
-        brew update
-        brew upgrade
-        brew install bash
-
-    - name: Install dependencies
-      run: |
-        set +e
-        echo "bash $BASH_VERSION"
-        brew install binutils coreutils gnu-sed make
-        if [[ -z "$HOMEBREW_PREFIX" ]]; then
-          export HOMEBREW_PREFIX="$(brew --prefix)"
-          echo 'export HOMEBREW_PREFIX="$(brew --prefix)"' >> "$HOME/.bash_profile"
-          echo "HOMEBREW_PREFIX=$HOMEBREW_PREFIX" >> "$GITHUB_ENV"
-        fi
-        export PATH="$(brew --prefix binutils)/bin:$HOMEBREW_PREFIX/opt/coreutils/libexec/gnubin:$HOMEBREW_PREFIX/opt/gnu-sed/libexec/gnubin:$HOMEBREW_PREFIX/opt/make/libexec/gnubin:$PATH"
-        printf '%s\n' "alias nproc='sysctl -n hw.logicalcpu'" \
-               "export PATH=\"$PATH\"" >> "$HOME/.bash_profile"
-        echo "PATH=$PATH" >> "$GITHUB_ENV"
-
-    - uses: actions/checkout@v4
-
-    - name: Set environment
-      shell: bash
-      run: |
-        __csrc=( \
-          args   \
-          dbs26  \
-        )
-        __cflags=(         \
-          -std=gnu2x       \
-          -O3              \
-          -flto=full       \
-          -Wall            \
-          -Wextra          \
-          -Wpedantic       \
-          -Weverything     \
-          -DNDEBUG=1       \
-        )
-        echo "__cflags=${__cflags[@]}" >> "$GITHUB_ENV"
-        echo "__src=${__csrc[@]/%/.c}" >> "$GITHUB_ENV"
-        echo "__srcdir=$(realpath -e src)" >> "$GITHUB_ENV"
-        echo "ncpu=$(sysctl -n hw.logicalcpu)" >> "$GITHUB_ENV"
-
-    - name: Get available compilers
-      shell: bash
-      run: |
-        set +e
-        uname -a
-        printf -- '\n+---------+\n|compilers|\n+---------+\n'
-        . .github/workflows/functions.bash
-        get_compilers
-        declare -a cc_clang cc_gcc
-        declare -A cc_v
-        for _cc in "${compilers[@]}"; do
-          v=$("$_cc" --version 2>&1 | head -1)
-          case "$_cc" in
-          clang*)
-            cc_clang+=("$_cc") ;;
-          gcc*)
-            [[ ! "$v" =~ clang ]] || continue
-            cc_gcc+=("$_cc") ;;
-          esac
-          cc_v["$_cc"]="$v"
-        done
-        n=$(printf '%s\n' "${cc_v[@]}" | wc -L)
-        for _cc in "${cc_clang[@]}"; do
-          printf "%-${n}s\t%s\n" "${cc_v[$_cc]}" "$_cc"
-        done | tee compilers_clang
-        for _cc in "${cc_gcc[@]}"; do
-          printf "%-${n}s\t%s\n" "${cc_v[$_cc]}" "$_cc"
-        done | tee compilers_gcc
-
-    - name: Compile for macOS
-      shell: bash
-      run: |
-        __outdir="${PWD%/}/"
-        pushd "$__srcdir" >/dev/null
-        clang -arch arm64 $__cflags -o dbs26-arm64 $__src
-        clang -arch x86_64 $__cflags -o dbs26-x86_64 $__src
-        mv dbs26-{arm64,x86_64} "$__outdir"
-        popd >/dev/null
-        lipo -create -output dbs26{,-arm64,-x86_64}
-
-    - name: Archive macOS binary
-      uses: actions/upload-artifact@v4
-      with:
-        name: dbs26-macos
-        path: |
-          dbs26
-          LICENSE
-          README.md
-
-    - name: Verify macOS binary output
-      run: |
-        arch -arm64 ./dbs26 -o- | sha1sum
-        arch -x86_64 ./dbs26 -o- | sha1sum
-        ./dbs26
-        sha1sum dbs26.bin
-        rm -f dbs26.bin
+        try() {
+          local f="$RUNNER_TEMP/test.bin"
+          "$@" -o -   | sha1sum     ; rm -f "$f"
+          "$@" -o "$f"; sha1sum "$f"; rm -f "$f"
+        }
+        ${{ matrix.os == 'linux' && 'try "$__exe"' || '' }}
+        ${{ matrix.os == 'windows' && matrix.on == 'linux' && '
+        WINEDEBUG=-all try wine64 "$__exe"' || '' }}
+        ${{ matrix.os == 'macos' && 'try arch -arm64 "$__exe"
+        try arch -x86_64 "$__exe"' || '' }}
