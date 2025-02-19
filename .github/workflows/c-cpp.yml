@@ -117,14 +117,14 @@ jobs:
                      msitools python3 winbind winehq-staging' || '' }}
         ${{ matrix.on == 'macos' && 'set +e
         brew install coreutils gnu-sed
-        printf -vP "$(brew --prefix)/opt/%s/libexec/gnubin:" \
-               gnu-sed coreutils
+        printf -vP "$(brew --prefix)/opt/%s/libexec/gnubin:" gnu-sed coreutils
         P="${P}$PATH"
         echo "export PATH=\"$P\"" >> "$HOME/.bash_profile"
         echo "PATH=$P" >> "$GITHUB_ENV"' || '' }}
         ${{ matrix.on == 'linux' && matrix.os == 'windows' && 'mkdir -p "$__msvc_sdk_dir"
         "$__msvc_dir/vsdownload.py" --accept-license --dest "$__msvc_sdk_dir"
-        "$__msvc_dir/install.sh" "$__msvc_sdk_dir"' || '' }}
+        "$__msvc_dir/install.sh" "$__msvc_sdk_dir"
+        echo "PATH=$__msvc_sdk_dir/bin/x64:$PATH" >> "$GITHUB_ENV"' || '' }}
 
     - name: Get available compilers
       run: |
@@ -162,7 +162,8 @@ jobs:
         strip --strip-all "$__exe"' || '' }}
         ${{ matrix.os == 'windows' && matrix.on == 'linux' && '
         BIN="$__msvc_sdk_dir/bin/x64" . "$__msvc_dir/msvcenv-native.sh"
-        "$__cc" --target=x86_64-windows-msvc $__cflags -o "$__exe" $__c_src' || '' }}
+        "$__cc" --target=x86_64-windows-msvc $__cflags -o "$__exe" $__c_src
+        cl /nologo /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /favor:AMD64 /arch:AVX2 /MT /Fe: "cl-$__executable" $__c_src' || '' }}
         ${{ matrix.os == 'macos' && '"$__cc" -arch arm64 $__cflags -o "$__exe-arm64" $__c_src
         "$__cc" -arch x86_64 $__cflags -o "$__exe-x86_64" $__c_src
         lipo -create -output "$__exe" "$__exe-arm64" "$__exe-x86_64"' || '' }}
@@ -172,7 +173,8 @@ jobs:
       with:
         name: dbs26-${{ matrix.os }}
         path: |
-          ${{ env.__executable }}
+          ${{ matrix.os == 'windows' && matrix.on == 'linux' && 'cl-' || '' }}${{ env.__executable }}
+          ${{ matrix.os == 'windows' && matrix.on == 'linux' && env.__executable || '' }}
           LICENSE
           README.md
 
