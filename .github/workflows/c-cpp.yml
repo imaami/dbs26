@@ -12,11 +12,8 @@ defaults:
 
 env:
   __c_src: args.c dbs26.c
-  __executable: dbs26
-  __exec_prefix: ./
   __build_path: build
   __dest_path: dest
-  __src_path: src
   __nproc: nproc
   __cc: clang-21
   __cflags: -std=gnu23 -flto=full -fuse-ld=lld -O3 -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1 -march=x86-64-v3 -mtune=znver3
@@ -35,21 +32,23 @@ jobs:
             on: macOS
           - os: Windows
             on: Linux
+    env:
+      result: dbs26
+      suffix: ${{ matrix.os == 'Windows' && '.exe' || '' }}
     steps:
     - name: Set build config
       id: cfg
       env:
         cross: ${{ matrix.os != runner.os && matrix.os || '' }}
         native: ${{ matrix.os == runner.os && runner.os || '' }}
-        suffix: ${{ matrix.os == 'Windows' && '.exe' || '' }}
-        exe1: ${{ env.__executable }}${{ env.suffix }}
-        exe2: ${{ matrix.os == 'Windows' && 'cl-' || '' }}${{ env.__executable }}${{ env.suffix }}
+        exe: ${{ env.result }}${{ env.suffix }}
+        exe2: cl-${{ env.result }}${{ env.suffix }}
         wine: ${{ matrix.os == 'Windows' && runner.os != 'Windows' && 'WINEDEBUG=-all wine64 ' || '' }}
         zip: dbs26-${{ matrix.os }}
       run: |
         printf '%s=%s\n' \
-               exe1 "$exe1" \
-               ${{ matrix.os != 'Linux' && 'exe2 "$exe2" ' || '' }}\
+               exe "$exe" \
+               ${{ matrix.os == 'Windows' && 'exe2 "$exe2" ' || '' }}\
                native "$native" \
                cross "$cross" \
                suffix "$suffix" \
@@ -79,13 +78,14 @@ jobs:
         ${{ runner.os == 'Linux' && env.Linux || '' }}
         ${{ runner.os == 'macOS' && env.macOS || '' }}
     - name: Set env variables
+      id: env
       env:
         __msvc_path_Linux: ${{ matrix.os == 'Windows' && 'msvc' || '' }}
-        __exec_prefix_Linux: ${{ matrix.os == 'Windows' && 'WINEDEBUG=-all wine64 ' || '' }}./
-        __exec_prefix_macOS: 'arch -'
         __nproc_macOS: sysctl -n hw.logicalcpu
         __cc_macOS: clang
         __cflags_macOS: -std=gnu2x -flto=full -O3 -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1
+        exe: ${{ steps.cfg.outputs.exe }}
+        exe2: ${{ steps.cfg.outputs.exe2 }}
       run: |
         def() {
           set "$1" "${1}_${{ runner.os }}"
@@ -103,19 +103,23 @@ jobs:
           __msvc_sdk_path="$__msvc_path/sdk"
           echo "__msvc_sdk_path=$__msvc_sdk_path" >> "$GITHUB_ENV"
         }
-        [[ "$__msvc_dir" ]] || {
-          __msvc_dir="$GITHUB_WORKSPACE/$__msvc_path"
-          echo "__msvc_dir=$__msvc_dir" >> "$GITHUB_ENV"
-        }
-        [[ "$__msvc_sdk_dir" ]] || {
-          __msvc_sdk_dir="$__msvc_dir/sdk"
-          echo "__msvc_sdk_dir=$__msvc_sdk_dir" >> "$GITHUB_ENV"
-        }' || '' }}
+        [[ "$__msvc_dir"     ]] || __msvc_dir="$GITHUB_WORKSPACE/$__msvc_path"
+        [[ "$__msvc_sdk_dir" ]] || __msvc_sdk_dir="$__msvc_dir/sdk"
+        [[ "$__msvc_bin_dir" ]] || __msvc_bin_dir="$__msvc_sdk_dir/bin/x64"
+        printf "%s=%s\n" \
+               msvc_dir "$__msvc_dir" \
+               msvc_sdk_dir "$__msvc_sdk_dir" \
+               msvc_bin_dir "$__msvc_bin_dir" >> "$GITHUB_OUTPUT"
+        ' || '' }}
         [[ "$__build_dir" ]] || {
           __build_dir="$GITHUB_WORKSPACE/$__build_path"
           echo "__build_dir=$__build_dir" >> "$GITHUB_ENV"
         }
-        echo "__exe=$__build_dir/$__executable" >> "$GITHUB_ENV"
+
+        printf "%s=%s\n" \
+               build_dir "$__build_dir" \
+               built_exe "$__build_dir/$exe" \
+               ${{ env.exe2 && 'built_exe2 "$__build_dir/$exe2" ' || '' }} >> "$GITHUB_OUTPUT"
 
     - uses: actions/checkout@v4
 
@@ -124,10 +128,14 @@ jobs:
       uses: actions/checkout@v4
       with:
         repository: mstorsjo/msvc-wine
-        path: ${{ env.__msvc_dir }}
+        path: ${{ steps.env.outputs.msvc_dir }}
         ref: master
 
     - name: Install build dependencies
+      env:
+        msvc_dir: ${{ steps.env.outputs.msvc_dir }}
+        msvc_sdk_dir: ${{ steps.env.outputs.msvc_sdk_dir }}
+        msvc_bin_dir: ${{ steps.env.outputs.msvc_bin_dir }}
       run: |
         ${{ runner.os == 'Linux' && '
         sudo apt-get install -y clang clang-21 lld \
@@ -141,10 +149,9 @@ jobs:
         P="${P}$PATH"
         echo "export PATH=\"$P\"" >> "$HOME/.bash_profile"
         echo "PATH=$P" >> "$GITHUB_ENV"' || '' }}
-        ${{ steps.cfg.outputs.wine && 'mkdir -p "$__msvc_sdk_dir"
-        "$__msvc_dir/vsdownload.py" --accept-license --dest "$__msvc_sdk_dir"
-        "$__msvc_dir/install.sh" "$__msvc_sdk_dir"
-        echo "PATH=$__msvc_sdk_dir/bin/x64:$PATH" >> "$GITHUB_ENV"' || '' }}
+        ${{ steps.cfg.outputs.wine && 'mkdir -p "$msvc_sdk_dir"
+        "$msvc_dir/vsdownload.py" --accept-license --dest "$msvc_sdk_dir"
+        "$msvc_dir/install.sh" "$msvc_sdk_dir"' || '' }}
 
     - name: Get available compilers
       run: |
@@ -175,32 +182,40 @@ jobs:
         done | tee compilers_gcc
 
     - name: Compile
-      working-directory: ${{ github.workspace }}/${{ env.__src_path }}
+      working-directory: ${{ github.workspace }}/src
+      env:
+        build_dir: ${{ steps.env.outputs.build_dir }}
+        built_exe: ${{ steps.env.outputs.built_exe }}
+        built_exe2: ${{ steps.env.outputs.built_exe2 }}
+        msvc_dir: ${{ steps.env.outputs.msvc_dir }}
+        msvc_bin_dir: ${{ steps.env.outputs.msvc_bin_dir }}
+        sources: args.c dbs26.c
       run: |
-        mkdir -p "$__build_dir"
-        ${{ steps.cfg.outputs.native == 'Linux' && '"$__cc" $__cflags -o "$__exe" $__c_src
-        strip --strip-all "$__exe"' || '' }}
-        ${{ steps.cfg.outputs.cross == 'Windows' && 'BIN="$__msvc_sdk_dir/bin/x64" . "$__msvc_dir/msvcenv-native.sh"
-        "$__cc" --target=x86_64-windows-msvc $__cflags -o "$__exe" $__c_src
-        cl /nologo /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /favor:AMD64 /arch:AVX2 /MT /Fe: "cl-$__executable" $__c_src' || '' }}
-        ${{ steps.cfg.outputs.native == 'macOS' && '"$__cc" -arch arm64 $__cflags -o "$__exe-arm64" $__c_src
-        "$__cc" -arch x86_64 $__cflags -o "$__exe-x86_64" $__c_src
-        lipo -create -output "$__exe" "$__exe-arm64" "$__exe-x86_64"' || '' }}
+        mkdir -p "$build_dir"
+        ${{ steps.cfg.outputs.native == 'Linux' && '"$__cc" $__cflags -o "$built_exe" $sources
+        strip --strip-all "$built_exe"' || '' }}
+        ${{ steps.cfg.outputs.cross == 'Windows' && 'BIN="$msvc_bin_dir" . "$msvc_dir/msvcenv-native.sh"
+        "$__cc" --target=x86_64-windows-msvc $__cflags -o "$built_exe" $sources
+        export PATH="$msvc_bin_dir:$PATH"
+        cl /nologo /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /favor:AMD64 /arch:AVX2 /MT /Fe: "$built_exe2" $sources' || '' }}
+        ${{ steps.cfg.outputs.native == 'macOS' && '"$__cc" -arch arm64 $__cflags -o "$built_exe-arm64" $sources
+        "$__cc" -arch x86_64 $__cflags -o "$built_exe-x86_64" $sources
+        lipo -create -output "$built_exe" "$built_exe-arm64" "$built_exe-x86_64"' || '' }}
 
     - name: Archive build artifacts
       uses: actions/upload-artifact@v4
       with:
         name: ${{ steps.cfg.outputs.zip }}
         path: |
-          ${{ matrix.os == 'Windows' && 'cl-' || '' }}${{ env.__executable }}
-          ${{ matrix.os == 'Windows' && env.__executable || '' }}
+          ${{ steps.env.outputs.built_exe }}
+          ${{ steps.env.outputs.built_exe2 }}
           LICENSE
           README.md
 
     - name: Verify binary output
-      working-directory: ${{ env.__build_dir }}
+      working-directory: ${{ steps.env.outputs.build_dir }}
       env:
-        try1: try ${{ steps.cfg.outputs.native == 'macOS' && 'arch -arm64 ' || '' }}"./${{ steps.cfg.outputs.exe1 }}"
+        try1: try ${{ steps.cfg.outputs.native == 'macOS' && 'arch -arm64 ' || '' }}"./${{ steps.cfg.outputs.exe }}"
         try2: try ${{ steps.cfg.outputs.native == 'macOS' && 'arch -x86_64 ' || '' }}"./${{ steps.cfg.outputs.exe2 }}"
       run: |
         try() {
