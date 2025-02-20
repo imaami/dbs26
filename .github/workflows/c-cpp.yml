@@ -200,8 +200,8 @@ jobs:
     - name: Verify binary output
       working-directory: ${{ env.__build_dir }}
       env:
-        try1: try ${{ steps.cfg.outputs.native == 'macOS' && 'arch -arm64 ' || './' }}"${{ steps.cfg.outputs.exe1 }}"
-        try2: try ${{ steps.cfg.outputs.native == 'macOS' && 'arch -x86_64 ' || './' }}"${{ steps.cfg.outputs.exe2 }}"
+        try1: try ${{ steps.cfg.outputs.native == 'macOS' && 'arch -arm64 ' || '' }}"./${{ steps.cfg.outputs.exe1 }}"
+        try2: try ${{ steps.cfg.outputs.native == 'macOS' && 'arch -x86_64 ' || '' }}"./${{ steps.cfg.outputs.exe2 }}"
       run: |
         try() {
           local f="$RUNNER_TEMP/test.bin"
