@@ -36,10 +36,15 @@ jobs:
           - os: windows
             on: linux
     env:
-      __exe_suffix: ${{ matrix.os == 'windows' && '.exe' || '' }}
       __exe1: ${{ env.__executable }}${{ env.__exe_suffix }}
       __native: ${{ matrix.os == matrix.on }}
     steps:
+    - name: Set build config
+      id: cfg
+      env:
+        suffix: ${{ matrix.os == 'windows' && '.exe' || '' }}
+      run: |
+        echo "::set-output name=suffix::$suffix"
     - name: Install system updates
       run: |
         ${{ matrix.on == 'linux' && '
@@ -193,8 +198,6 @@ jobs:
         pfx: ${{ env.pfx_ }}./
         exe1_windows_linux: ${{ env.__executable }}
         exe2_windows_linux: ${{ env.__executable }}
-          WINEDEBUG=-all try wine64 ${{ env.exe }}
-          WINEDEBUG=-all try wine64 cl-${{ env.exe }}
         exe_macos_macos: |
           try arch -arm64 ${{ env.exe }}
           try arch -x86_64 ${{ env.exe }}
