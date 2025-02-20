@@ -48,8 +48,8 @@ jobs:
         zip: dbs26-${{ matrix.os }}
       run: |
         printf '%s=%s\n' \
-               exe1 "${{ env.__executable }}${{ env.suffix }}" \
-               exe2 "cl-${{ env.__executable }}${{ env.suffix }}" \
+               exe1 "$exe1" \
+               exe2 "$exe2" \
                native "$native" \
                cross "$cross" \
                suffix "$suffix" \
