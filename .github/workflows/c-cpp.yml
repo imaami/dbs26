@@ -24,63 +24,70 @@ env:
 jobs:
   build:
     name: ${{ matrix.os }}${{ matrix.os != matrix.on && ' target on ' || '' }}${{ matrix.os != matrix.on && matrix.on || '' }}
-    runs-on: ${{ matrix.on == 'macos' && 'macos-15' || 'ubuntu-24.04' }}
+    runs-on: ${{ matrix.on == 'macOS' && 'macos-15' || 'ubuntu-24.04' }}
     strategy:
       matrix:
-        os: [ linux, macos, windows ]
+        os: [ Linux, macOS, Windows ]
         include:
-          - os: linux
-            on: linux
-          - os: macos
-            on: macos
-          - os: windows
-            on: linux
-    env:
-      __native: ${{ matrix.os == matrix.on }}
+          - os: Linux
+            on: Linux
+          - os: macOS
+            on: macOS
+          - os: Windows
+            on: Linux
     steps:
     - name: Set build config
       id: cfg
       env:
-        suffix: ${{ matrix.os == 'windows' && '.exe' || '' }}
-        wine: ${{ matrix.os == 'windows' && runner.os != 'Windows' && 'wine64' || '' }}
+        cross: ${{ matrix.os != runner.os && matrix.os || '' }}
+        native: ${{ matrix.os == runner.os && runner.os || '' }}
+        suffix: ${{ matrix.os == 'Windows' && '.exe' || '' }}
+        exe1: ${{ env.__executable }}${{ env.suffix }}
+        exe2: ${{ matrix.os == 'Windows' && 'cl-' || '' }}${{ env.__executable }}${{ env.suffix }}
+        wine: ${{ matrix.os == 'Windows' && runner.os != 'Windows' && 'WINEDEBUG=-all wine64 ' || '' }}
+        zip: dbs26-${{ matrix.os }}
       run: |
         printf '%s=%s\n' \
+               exe1 "${{ env.__executable }}${{ env.suffix }}" \
+               exe2 "cl-${{ env.__executable }}${{ env.suffix }}" \
+               native "$native" \
+               cross "$cross" \
                suffix "$suffix" \
-               wine "$wine" >> "$GITHUB_OUTPUT"
+               wine "$wine" \
+               zip "$zip" >> "$GITHUB_OUTPUT"
     - name: Install system updates
       run: |
-        ${{ matrix.on == 'linux' && '
+        ${{ runner.os == 'Linux' && '
         printf "deb http://apt.llvm.org/%s/ %s %s\n" \
                noble llvm-toolchain-noble main \
         | sudo tee /etc/apt/sources.list.d/apt.llvm.org.list
         wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
         | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc' || '' }}
-        ${{ matrix.on == 'linux' && matrix.os == 'windows' && '
-        sudo mkdir -pm755 /etc/apt/keyrings
+        ${{ steps.cfg.outputs.wine && 'sudo mkdir -pm755 /etc/apt/keyrings
         wget -qO- https://dl.winehq.org/wine-builds/winehq.key \
         | sudo gpg --dearmor -o /etc/apt/keyrings/winehq-archive.key -
         wget -qO- https://dl.winehq.org/wine-builds/ubuntu/dists/noble/winehq-noble.sources \
         | sudo tee /etc/apt/sources.list.d/winehq.sources
         cat /etc/apt/sources.list.d/winehq.sources
         sudo dpkg --add-architecture i386' || '' }}
-        ${{ matrix.on == 'linux' && 'sudo apt-get update
+        ${{ runner.os == 'Linux' && 'sudo apt-get update
         sudo apt-get upgrade -y' || '' }}
-        ${{ matrix.on == 'macos' && 'set +e
+        ${{ runner.os == 'macOS' && 'set +e
         brew update
         brew upgrade
         brew install bash' || '' }}
 
     - name: Set env variables
       env:
-        __msvc_path_linux: ${{ matrix.os == 'windows' && 'msvc' || '' }}
-        __exec_prefix_linux: ${{ matrix.os == 'windows' && 'WINEDEBUG=-all wine64 ' || '' }}./
-        __exec_prefix_macos: 'arch -'
-        __nproc_macos: sysctl -n hw.logicalcpu
-        __cc_macos: clang
-        __cflags_macos: -std=gnu2x -flto=full -O3 -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1
+        __msvc_path_Linux: ${{ matrix.os == 'Windows' && 'msvc' || '' }}
+        __exec_prefix_Linux: ${{ matrix.os == 'Windows' && 'WINEDEBUG=-all wine64 ' || '' }}./
+        __exec_prefix_macOS: 'arch -'
+        __nproc_macOS: sysctl -n hw.logicalcpu
+        __cc_macOS: clang
+        __cflags_macOS: -std=gnu2x -flto=full -O3 -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1
       run: |
         def() {
-          set "$1" "${1}_${{ matrix.on }}"
+          set "$1" "${1}_${{ runner.os }}"
           if [[ "${!2}" ]]; then
             declare -g "$1=${!2//$'\n'/ }"
             echo "$1=${!1}" >> "$GITHUB_ENV"
@@ -90,7 +97,7 @@ jobs:
         def __cc
         def __cflags
         def __nproc
-        ${{ matrix.on == 'linux' && matrix.os == 'windows' && 'def __msvc_path
+        ${{ steps.cfg.outputs.wine && 'def __msvc_path
         [[ "$__msvc_sdk_path" ]] || {
           __msvc_sdk_path="$__msvc_path/sdk"
           echo "__msvc_sdk_path=$__msvc_sdk_path" >> "$GITHUB_ENV"
@@ -121,19 +128,19 @@ jobs:
 
     - name: Install build dependencies
       run: |
-        ${{ matrix.on == 'linux' && '
+        ${{ runner.os == 'Linux' && '
         sudo apt-get install -y clang clang-21 lld \
                      lld-21 llvm-21-linker-tools' || '' }}
-        ${{ matrix.on == 'linux' && matrix.os == 'windows' && '
+        ${{ steps.cfg.outputs.cross == 'Windows' && '
         sudo apt-get install -y --install-recommends ca-certificates \
                      msitools python3 winbind winehq-staging' || '' }}
-        ${{ matrix.on == 'macos' && 'set +e
+        ${{ runner.os == 'macOS' && 'set +e
         brew install coreutils gnu-sed
         printf -vP "$(brew --prefix)/opt/%s/libexec/gnubin:" gnu-sed coreutils
         P="${P}$PATH"
         echo "export PATH=\"$P\"" >> "$HOME/.bash_profile"
         echo "PATH=$P" >> "$GITHUB_ENV"' || '' }}
-        ${{ matrix.on == 'linux' && matrix.os == 'windows' && 'mkdir -p "$__msvc_sdk_dir"
+        ${{ steps.cfg.outputs.wine && 'mkdir -p "$__msvc_sdk_dir"
         "$__msvc_dir/vsdownload.py" --accept-license --dest "$__msvc_sdk_dir"
         "$__msvc_dir/install.sh" "$__msvc_sdk_dir"
         echo "PATH=$__msvc_sdk_dir/bin/x64:$PATH" >> "$GITHUB_ENV"' || '' }}
@@ -170,23 +177,22 @@ jobs:
       working-directory: ${{ github.workspace }}/${{ env.__src_path }}
       run: |
         mkdir -p "$__build_dir"
-        ${{ matrix.os == 'linux' && '"$__cc" $__cflags -o "$__exe" $__c_src
+        ${{ steps.cfg.outputs.native == 'Linux' && '"$__cc" $__cflags -o "$__exe" $__c_src
         strip --strip-all "$__exe"' || '' }}
-        ${{ matrix.os == 'windows' && matrix.on == 'linux' && '
-        BIN="$__msvc_sdk_dir/bin/x64" . "$__msvc_dir/msvcenv-native.sh"
+        ${{ steps.cfg.outputs.cross == 'Windows' && 'BIN="$__msvc_sdk_dir/bin/x64" . "$__msvc_dir/msvcenv-native.sh"
         "$__cc" --target=x86_64-windows-msvc $__cflags -o "$__exe" $__c_src
         cl /nologo /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /favor:AMD64 /arch:AVX2 /MT /Fe: "cl-$__executable" $__c_src' || '' }}
-        ${{ matrix.os == 'macos' && '"$__cc" -arch arm64 $__cflags -o "$__exe-arm64" $__c_src
+        ${{ steps.cfg.outputs.native == 'macOS' && '"$__cc" -arch arm64 $__cflags -o "$__exe-arm64" $__c_src
         "$__cc" -arch x86_64 $__cflags -o "$__exe-x86_64" $__c_src
         lipo -create -output "$__exe" "$__exe-arm64" "$__exe-x86_64"' || '' }}
 
     - name: Archive build artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: dbs26-${{ matrix.os }}
+        name: ${{ steps.cfg.outputs.zip }}
         path: |
-          ${{ steps.cfg.outputs.wine && 'cl-' || '' }}${{ env.__executable }}
-          ${{ steps.cfg.outputs.wine && env.__executable || '' }}
+          ${{ matrix.os == 'Windows' && 'cl-' || '' }}${{ env.__executable }}
+          ${{ matrix.os == 'Windows' && env.__executable || '' }}
           LICENSE
           README.md
 
@@ -194,19 +200,16 @@ jobs:
       working-directory: ${{ env.__build_dir }}
       env:
         exe: ${{ env.__executable }}
-        pfx_windows: WINEDEBUG=-all wine64
-        pfx_macos: arch
-        exe1_windows_linux: ${{ env.__executable }}
-        exe2_windows_linux: ${{ env.__executable }}
-        exe_macos_macos: |
-          try arch -arm64 ${{ env.exe }}
-          try arch -x86_64 ${{ env.exe }}
+        exe1_Windows_Linux: ${{ env.__executable }}
+        exe2_Windows_Linux: ${{ env.__executable }}
+        exe_macOS_macOS: |
+          try arch -arm64 ${{ env.__executable }}
+          try arch -x86_64 ${{ env.__executable }}
       run: |
         try() {
           local f="$RUNNER_TEMP/test.bin"
-          "$@" -o -   | sha1sum     ; rm -f "$f"
-          "$@" -o "$f"; sha1sum "$f"; rm -f "$f"
+          ${{ steps.cfg.outputs.wine }}"$@" -o -   | sha1sum     ; rm -f "$f"
+          ${{ steps.cfg.outputs.wine }}"$@" -o "$f"; sha1sum "$f"; rm -f "$f"
         }
-        ${{ matrix.os == 'windows' && matrix.on == 'linux' && 'export WINEDEBUG=-all
-        try wine64 "$exe"; try wine64 "cl-$exe"' || 'try' }}${{ matrix.os == 'macos' && ' arch -arm64
+        try "$exe"; try "cl-$exe"' || 'try' }}${{ matrix.os == 'macOS' && ' arch -arm64
         try arch -x86_64' || '' }}
