@@ -12,6 +12,8 @@ defaults:
 
 env:
   __c_src: args.c dbs26.c
+  __executable: dbs26
+  __exec_prefix: ./
   __build_path: build
   __dest_path: dest
   __src_path: src
@@ -34,7 +36,8 @@ jobs:
           - os: windows
             on: linux
     env:
-      __executable: dbs26${{ matrix.os == 'windows' && '.exe' || '' }}
+      __exe_suffix: ${{ matrix.os == 'windows' && '.exe' || '' }}
+      __exe1: ${{ env.__executable }}${{ env.__exe_suffix }}
       __native: ${{ matrix.os == matrix.on }}
     steps:
     - name: Install system updates
@@ -63,6 +66,8 @@ jobs:
     - name: Set env variables
       env:
         __msvc_path_linux: ${{ matrix.os == 'windows' && 'msvc' || '' }}
+        __exec_prefix_linux: ${{ matrix.os == 'windows' && 'WINEDEBUG=-all wine64 ' || '' }}./
+        __exec_prefix_macos: 'arch -'
         __nproc_macos: sysctl -n hw.logicalcpu
         __cc_macos: clang
         __cflags_macos: -std=gnu2x -flto=full -O3 -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1
@@ -76,6 +81,7 @@ jobs:
         }
 
         def __cc
+        def __cflags
         def __cflags
         def __nproc
         ${{ matrix.on == 'linux' && matrix.os == 'windows' && 'def __msvc_path
@@ -179,11 +185,25 @@ jobs:
           README.md
 
     - name: Verify binary output
+      working-directory: ${{ env.__build_dir }}
+      env:
+        exe: ${{ env.__executable }}
+        pfx_windows: WINEDEBUG=-all wine64
+        pfx_macos: arch
+        pfx: ${{ env.pfx_ }}./
+        exe1_windows_linux: ${{ env.__executable }}
+        exe2_windows_linux: ${{ env.__executable }}
+          WINEDEBUG=-all try wine64 ${{ env.exe }}
+          WINEDEBUG=-all try wine64 cl-${{ env.exe }}
+        exe_macos_macos: |
+          try arch -arm64 ${{ env.exe }}
+          try arch -x86_64 ${{ env.exe }}
       run: |
         try() {
           local f="$RUNNER_TEMP/test.bin"
-          "$@" "$__exe" -o -   | sha1sum     ; rm -f "$f"
-          "$@" "$__exe" -o "$f"; sha1sum "$f"; rm -f "$f"
+          "$@" -o -   | sha1sum     ; rm -f "$f"
+          "$@" -o "$f"; sha1sum "$f"; rm -f "$f"
         }
-        ${{ matrix.os == 'windows' && matrix.on == 'linux' && 'WINEDEBUG=-all try wine64' || 'try' }}${{ matrix.os == 'macos' && ' arch -arm64
+        ${{ matrix.os == 'windows' && matrix.on == 'linux' && 'export WINEDEBUG=-all
+        try wine64 "$exe"; try wine64 "cl-$exe"' || 'try' }}${{ matrix.os == 'macos' && ' arch -arm64
         try arch -x86_64' || '' }}
