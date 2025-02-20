@@ -200,19 +200,20 @@ jobs:
     - name: Verify binary output
       working-directory: ${{ env.__build_dir }}
       env:
-        exe: ${{ env.__executable }}
-        exe1_Windows_Linux: ${{ env.__executable }}
-        exe2_Windows_Linux: ${{ env.__executable }}
-        exe_macOS_macOS: |
-          try arch -arm64 ${{ env.__executable }}
-          try arch -x86_64 ${{ env.__executable }}
+        Linux: |
+          ${{ runner.os == 'Linux' && 'try "./${{ env.__executable }}"' || '' }}
+        macOS: |
+          ${{ runner.os == 'macOS' && 'try arch -arm64 "${{ env.__executable }}"
+          try arch -x86_64 "${{ env.__executable }}"' || '' }}
+        Windows: |
+          ${{ runner.os != 'Windows' && 'try "${{ env.__executable }}"
+          try "cl-${{ env.__executable }}"' || '' }}
       run: |
         try() {
           local f="$RUNNER_TEMP/test.bin"
           ${{ steps.cfg.outputs.wine }}"$@" -o -   | sha1sum     ; rm -f "$f"
           ${{ steps.cfg.outputs.wine }}"$@" -o "$f"; sha1sum "$f"; rm -f "$f"
         }
-        try "$exe"
-        ${{ matrix.os == 'macOS' && 'try arch -arm64 ${{ env.__executable }}
-        try arch -x86_64 ${{ env.__executable }}' || '' }}
-        try arch -x86_64' || '' }}
+        ${{ matrix.os == 'Linux' && env.Linux || '' }}
+        ${{ matrix.os == 'macOS' && env.macOS || '' }}
+        ${{ matrix.os == 'Windows' && env.Windows || '' }}
