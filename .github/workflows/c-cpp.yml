@@ -212,5 +212,7 @@ jobs:
           ${{ steps.cfg.outputs.wine }}"$@" -o -   | sha1sum     ; rm -f "$f"
           ${{ steps.cfg.outputs.wine }}"$@" -o "$f"; sha1sum "$f"; rm -f "$f"
         }
-        try "$exe"; try "cl-$exe"' || 'try' }}${{ matrix.os == 'macOS' && ' arch -arm64
+        try "$exe"
+        ${{ matrix.os == 'macOS' && 'try arch -arm64 ${{ env.__executable }}
+        try arch -x86_64 ${{ env.__executable }}' || '' }}
         try arch -x86_64' || '' }}
