@@ -42,7 +42,7 @@ jobs:
       id: cfg
       env:
         suffix: ${{ matrix.os == 'windows' && '.exe' || '' }}
-        wine: ${{ matrix.os == 'windows' && runner.os != 'Windows' }}
+        wine: ${{ matrix.os == 'windows' && runner.os != 'Windows' && 'wine64' || '' }}
       run: |
         printf '%s=%s\n' \
                suffix "$suffix" \
