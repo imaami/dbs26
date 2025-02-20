@@ -36,15 +36,17 @@ jobs:
           - os: windows
             on: linux
     env:
-      __exe1: ${{ env.__executable }}${{ env.__exe_suffix }}
       __native: ${{ matrix.os == matrix.on }}
     steps:
     - name: Set build config
       id: cfg
       env:
         suffix: ${{ matrix.os == 'windows' && '.exe' || '' }}
+        wine: ${{ matrix.os == 'windows' && runner.os != 'Windows' }}
       run: |
-        echo "::set-output name=suffix::$suffix"
+        printf '::set-output name=%s::%s\n' \
+               suffix "$suffix" \
+               wine "$wine"
     - name: Install system updates
       run: |
         ${{ matrix.on == 'linux' && '
@@ -87,7 +89,6 @@ jobs:
 
         def __cc
         def __cflags
-        def __cflags
         def __nproc
         ${{ matrix.on == 'linux' && matrix.os == 'windows' && 'def __msvc_path
         [[ "$__msvc_sdk_path" ]] || {
@@ -111,7 +112,7 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Clone msvc-wine
-      if: ${{ matrix.os == 'windows' && matrix.on == 'linux' }}
+      if: ${{ steps.cfg.outputs.wine }}
       uses: actions/checkout@v4
       with:
         repository: mstorsjo/msvc-wine
@@ -184,8 +185,8 @@ jobs:
       with:
         name: dbs26-${{ matrix.os }}
         path: |
-          ${{ matrix.os == 'windows' && matrix.on == 'linux' && 'cl-' || '' }}${{ env.__executable }}
-          ${{ matrix.os == 'windows' && matrix.on == 'linux' && env.__executable || '' }}
+          ${{ steps.cfg.outputs.wine && 'cl-' || '' }}${{ env.__executable }}
+          ${{ steps.cfg.outputs.wine && env.__executable || '' }}
           LICENSE
           README.md
 
@@ -195,7 +196,6 @@ jobs:
         exe: ${{ env.__executable }}
         pfx_windows: WINEDEBUG=-all wine64
         pfx_macos: arch
-        pfx: ${{ env.pfx_ }}./
         exe1_windows_linux: ${{ env.__executable }}
         exe2_windows_linux: ${{ env.__executable }}
         exe_macos_macos: |
