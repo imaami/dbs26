@@ -11,7 +11,6 @@ defaults:
     shell: bash
 
 env:
-  __c_src: args.c dbs26.c
   __build_path: build
   __dest_path: dest
   __nproc: nproc
@@ -33,25 +32,21 @@ jobs:
           - os: Windows
             on: Linux
     env:
-      result: dbs26
-      suffix: ${{ matrix.os == 'Windows' && '.exe' || '' }}
+      project: dbs26
     steps:
     - name: Set build config
       id: cfg
       env:
         cross: ${{ matrix.os != runner.os && matrix.os || '' }}
         native: ${{ matrix.os == runner.os && runner.os || '' }}
-        exe: ${{ env.result }}${{ env.suffix }}
-        exe2: cl-${{ env.result }}${{ env.suffix }}
+        exe: ${{ env.project }}${{ matrix.os == 'Windows' && '.exe' || '' }}
         wine: ${{ matrix.os == 'Windows' && runner.os != 'Windows' && 'WINEDEBUG=-all wine64 ' || '' }}
-        zip: dbs26-${{ matrix.os }}
+        zip: ${{ env.project }}-${{ matrix.os }}
       run: |
         printf '%s=%s\n' \
-               exe "$exe" \
-               ${{ matrix.os == 'Windows' && 'exe2 "$exe2" ' || '' }}\
+               exe "$exe" ${{ matrix.os == 'Windows' && 'exe2 "cl-$exe" ' || '' }}\
                native "$native" \
                cross "$cross" \
-               suffix "$suffix" \
                wine "$wine" \
                zip "$zip" >> "$GITHUB_OUTPUT"
     - name: Install system updates
@@ -111,10 +106,7 @@ jobs:
                msvc_sdk_dir "$__msvc_sdk_dir" \
                msvc_bin_dir "$__msvc_bin_dir" >> "$GITHUB_OUTPUT"
         ' || '' }}
-        [[ "$__build_dir" ]] || {
-          __build_dir="$GITHUB_WORKSPACE/$__build_path"
-          echo "__build_dir=$__build_dir" >> "$GITHUB_ENV"
-        }
+        [[ "$__build_dir" ]] || __build_dir="$GITHUB_WORKSPACE/$__build_path"
 
         printf "%s=%s\n" \
                build_dir "$__build_dir" \
@@ -215,13 +207,28 @@ jobs:
     - name: Verify binary output
       working-directory: ${{ steps.env.outputs.build_dir }}
       env:
-        try1: try ${{ steps.cfg.outputs.native == 'macOS' && 'arch -arm64 ' || '' }}"./${{ steps.cfg.outputs.exe }}"
-        try2: try ${{ steps.cfg.outputs.native == 'macOS' && 'arch -x86_64 ' || '' }}"./${{ steps.cfg.outputs.exe2 }}"
+        Linux: |
+          ${{ matrix.os == 'Linux' && 'try "./steps.cfg.outputs.exe"' || '' }}
+        macOS: |
+          ${{ steps.cfg.outputs.native && '
+          try arch -arm64 "./$exe"
+          try arch -x86_64 "./$exe"' || '' }}
+        Windows: |
+          try ./steps.cfg.outputs.exe
+          try ./steps.cfg.outputs.exe2
+
+      env:
+        exe: ${{ steps.cfg.outputs.exe }}
+        exe2: ${{ steps.cfg.outputs.exe2 }}
+        try: ${{ steps.cfg.outputs.native == 'macOS' && 'try arch -' || 'try ' }}
+        try1: ${{ steps.cfg.outputs.native == 'macOS' && 'arm64 ' || '' }}./
+        try2: ${{ steps.cfg.outputs.native == 'macOS' && 'x86_64 ' || '' }}
+        try2: ${{ steps.cfg.outputs.native != 'Linux' && 'try' || '' }}${{ steps.cfg.outputs.native == 'macOS' && ' arch -x86_64' || '' }}
       run: |
         try() {
           local f="$RUNNER_TEMP/test.bin"
           ${{ steps.cfg.outputs.wine }}"$@" -o -   | sha1sum     ; rm -f "$f"
           ${{ steps.cfg.outputs.wine }}"$@" -o "$f"; sha1sum "$f"; rm -f "$f"
         }
-        ${{ env.try1 }}
+        ${{ env.try1 }} ${{ env.exe }}
         ${{ matrix.os != 'Linux' && env.try2 || '' }}
