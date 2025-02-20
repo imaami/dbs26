@@ -44,9 +44,9 @@ jobs:
         suffix: ${{ matrix.os == 'windows' && '.exe' || '' }}
         wine: ${{ matrix.os == 'windows' && runner.os != 'Windows' }}
       run: |
-        printf '::set-output name=%s::%s\n' \
+        printf '%s=%s\n' \
                suffix "$suffix" \
-               wine "$wine"
+               wine "$wine" >> "$GITHUB_OUTPUT"
     - name: Install system updates
       run: |
         ${{ matrix.on == 'linux' && '
