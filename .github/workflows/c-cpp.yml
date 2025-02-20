@@ -57,31 +57,27 @@ jobs:
                zip "$zip" >> "$GITHUB_OUTPUT"
     - name: Install system updates
       env:
-        runner_Linux: |
+        Linux: |
+          ${{ matrix.os == 'Windows' && 'sudo mkdir -pm755 /etc/apt/keyrings
+          wget -qO- https://dl.winehq.org/wine-builds/winehq.key | \
+          sudo gpg --dearmor -o /etc/apt/keyrings/winehq-archive.key -
+          wget -qO- https://dl.winehq.org/wine-builds/ubuntu/dists/noble/winehq-noble.sources | \
+          sudo tee /etc/apt/sources.list.d/winehq.sources
+          sudo dpkg --add-architecture i386' || '' }}
           echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble main" | \
           sudo tee /etc/apt/sources.list.d/apt.llvm.org.list
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | \
           sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+          sudo apt-get update
+          sudo apt-get upgrade -y
+        macOS: |
+          set +e
+          brew update
+          brew upgrade
+          brew install bash
       run: |
-        ${{ runner.os == 'Linux' && '
-        printf "deb http://apt.llvm.org/%s/ %s %s\n" \
-               noble llvm-toolchain-noble main \
-        | sudo tee /etc/apt/sources.list.d/apt.llvm.org.list
-        wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
-        | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc' || '' }}
-        ${{ steps.cfg.outputs.wine && 'sudo mkdir -pm755 /etc/apt/keyrings
-        wget -qO- https://dl.winehq.org/wine-builds/winehq.key \
-        | sudo gpg --dearmor -o /etc/apt/keyrings/winehq-archive.key -
-        wget -qO- https://dl.winehq.org/wine-builds/ubuntu/dists/noble/winehq-noble.sources \
-        | sudo tee /etc/apt/sources.list.d/winehq.sources
-        sudo dpkg --add-architecture i386' || '' }}
-        ${{ runner.os == 'Linux' && 'sudo apt-get update
-        sudo apt-get upgrade -y' || '' }}
-        ${{ runner.os == 'macOS' && 'set +e
-        brew update
-        brew upgrade
-        brew install bash' || '' }}
-
+        ${{ runner.os == 'Linux' && env.Linux || '' }}
+        ${{ runner.os == 'macOS' && env.macOS || '' }}
     - name: Set env variables
       env:
         __msvc_path_Linux: ${{ matrix.os == 'Windows' && 'msvc' || '' }}
