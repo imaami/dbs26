@@ -49,7 +49,7 @@ jobs:
       run: |
         printf '%s=%s\n' \
                exe1 "$exe1" \
-               exe2 "$exe2" \
+               ${{ matrix.os != 'Linux' && 'exe2 "$exe2" ' || '' }}\
                native "$native" \
                cross "$cross" \
                suffix "$suffix" \
