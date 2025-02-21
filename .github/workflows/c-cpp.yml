@@ -208,27 +208,19 @@ jobs:
       working-directory: ${{ steps.env.outputs.build_dir }}
       env:
         Linux: |
-          ${{ matrix.os == 'Linux' && 'try "./steps.cfg.outputs.exe"' || '' }}
+          ${{ matrix.os == 'Linux' && 'try ./' || '' }}${{ matrix.os == 'Linux' && steps.cfg.outputs.exe || '' }}
         macOS: |
-          ${{ steps.cfg.outputs.native && '
-          try arch -arm64 "./$exe"
-          try arch -x86_64 "./$exe"' || '' }}
+          ${{ matrix.os == 'macOS' && 'try arch -arm64 ./' || '' }}${{ matrix.os == 'macOS' && steps.cfg.outputs.exe || '' }}
+          ${{ matrix.os == 'macOS' && 'try arch -x86_64 ./' || '' }}${{ matrix.os == 'macOS' && steps.cfg.outputs.exe2 || '' }}
         Windows: |
-          try ./steps.cfg.outputs.exe
-          try ./steps.cfg.outputs.exe2
-
-      env:
-        exe: ${{ steps.cfg.outputs.exe }}
-        exe2: ${{ steps.cfg.outputs.exe2 }}
-        try: ${{ steps.cfg.outputs.native == 'macOS' && 'try arch -' || 'try ' }}
-        try1: ${{ steps.cfg.outputs.native == 'macOS' && 'arm64 ' || '' }}./
-        try2: ${{ steps.cfg.outputs.native == 'macOS' && 'x86_64 ' || '' }}
-        try2: ${{ steps.cfg.outputs.native != 'Linux' && 'try' || '' }}${{ steps.cfg.outputs.native == 'macOS' && ' arch -x86_64' || '' }}
+          ${{ matrix.os == 'Windows' && 'try ./' || '' }}${{ matrix.os == 'Windows' && steps.cfg.outputs.exe || '' }}
+          ${{ matrix.os == 'Windows' && 'try ./' || '' }}${{ matrix.os == 'Windows' && steps.cfg.outputs.exe2 || '' }}
       run: |
         try() {
           local f="$RUNNER_TEMP/test.bin"
           ${{ steps.cfg.outputs.wine }}"$@" -o -   | sha1sum     ; rm -f "$f"
           ${{ steps.cfg.outputs.wine }}"$@" -o "$f"; sha1sum "$f"; rm -f "$f"
         }
-        ${{ env.try1 }} ${{ env.exe }}
-        ${{ matrix.os != 'Linux' && env.try2 || '' }}
+        ${{ matrix.os == 'Linux' && env.Linux || '' }}
+        ${{ matrix.os == 'macOS' && env.macOS || '' }}
+        ${{ matrix.os == 'Windows' && env.Windows || '' }}
