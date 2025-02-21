@@ -22,12 +22,11 @@ jobs:
     strategy:
       matrix:
         os: [ Linux, macOS, Windows ]
-        include:
+        on: [ ubuntu-24.04, macos-15 ]
+        exclude:
           - os: Linux
-            on: ubuntu-24.04
-          - os: macOS
             on: macos-15
-          - os: Windows
+          - os: macOS
             on: ubuntu-24.04
     steps:
     - name: Set build params
