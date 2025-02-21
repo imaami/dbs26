@@ -34,6 +34,7 @@ jobs:
         printf '%s=%s\n' \
                ${{ matrix.os == runner.os && 'native' || 'cross' }} ${{ matrix.os }} \
                cc ${{ runner.os == 'macOS' && 'clang' || 'clang-21' }} \
+               clang-cl ${{ runner.os == 'macOS' && 'clang-cl' || 'clang-cl-21' }} \
                cflags "${{ env.cstandard }} ${{ env.baseflags }}${{ env.archflags }}" \
                exe dbs26${{ matrix.os == 'Windows' && '.exe exe2 cl-dbs26.exe' || '' }} \
                pkg dbs26-${{ matrix.os }} \
@@ -102,7 +103,7 @@ jobs:
       run: |
         ${{ runner.os == 'Linux' && 'sudo apt-get install -y clang clang-21 lld lld-21 llvm-21-linker-tools' || '' }}${{ steps.env.outputs.wine && runner.os == 'Linux' && ' \
                      ca-certificates msitools python3 winbind winehq-staging' || '' }}${{ runner.os == 'macOS' && 'set +e
-        brew install coreutils gnu-sed' || '' }}${{ steps.env.outputs.wine && runner.os == 'macOS' && ' msitools wine@staging' || '' }}
+        brew install coreutils gnu-sed' || '' }}${{ steps.env.outputs.wine && runner.os == 'macOS' && ' msitools wine@staging lld' || '' }}
         ${{ runner.os == 'macOS' && 'printf -vP "$(brew --prefix)/opt/%s/libexec/gnubin:" gnu-sed coreutils
         echo "PATH=$P$PATH" >> "$GITHUB_ENV"' || '' }}
         ${{ steps.env.outputs.wine && 'mkdir -p "$msvc_sdk_dir"
@@ -152,7 +153,7 @@ jobs:
           BIN="${{ steps.env.outputs.msvc_bin_dir }}" . "${{ steps.env.outputs.msvc_dir }}/msvcenv-native.sh"
           export PATH="${{ steps.env.outputs.msvc_bin_dir }}:$PATH"
           #"${{ steps.cfg.outputs.cc }}" --target=$TARGET_TRIPLE ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
-          clang-cl /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "$build_dir/${{ steps.cfg.outputs.exe2 }}" ${{ steps.cfg.outputs.src }}
+          "${{ steps.cfg.outputs.clang-cl }}" /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "$build_dir/${{ steps.cfg.outputs.exe2 }}" ${{ steps.cfg.outputs.src }}
       run: |
         mkdir -p "$build_dir"
         ${{ steps.cfg.outputs.native == 'Linux' && env.Linux || '' }}
