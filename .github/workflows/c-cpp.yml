@@ -154,22 +154,28 @@ jobs:
       working-directory: ${{ github.workspace }}/src
       env:
         build_dir: ${{ steps.env.outputs.build_dir }}
-        built_exe: ${{ steps.env.outputs.built_exe }}
-        built_exe2: ${{ steps.env.outputs.built_exe2 }}
+        exe: ${{ steps.cfg.outputs.exe }}
+        exe2: ${{ steps.cfg.outputs.exe2 }}
         msvc_dir: ${{ steps.env.outputs.msvc_dir }}
         msvc_bin_dir: ${{ steps.env.outputs.msvc_bin_dir }}
         sources: args.c dbs26.c
+        Linux: |
+          "${{ env.__cc }}" ${{ env.__cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}" ${{ env.sources }}
+          strip --strip-all "$build_dir/${{ steps.cfg.outputs.exe }}"
+        macOS: |
+          "${{ env.__cc }}" -arch arm64 ${{ env.__cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}-arm64" ${{ env.sources }}
+          "${{ env.__cc }}" -arch x86_64 ${{ env.__cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}-x86_64" ${{ env.sources }}
+          lipo -create -output "$build_dir/${{ steps.cfg.outputs.exe }}" "$build_dir/${{ steps.cfg.outputs.exe }}-arm64" "$build_dir/${{ steps.cfg.outputs.exe }}-x86_64"
+        Windows: |
+          BIN="$msvc_bin_dir" . "$msvc_dir/msvcenv-native.sh"
+          export PATH="$msvc_bin_dir:$PATH"
+          "${{ env.__cc }}" --target=x86_64-windows-msvc ${{ env.__cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}" ${{ env.sources }}
+          cl /nologo /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /favor:AMD64 /arch:AVX2 /MT /Fe: "$build_dir/${{ steps.cfg.outputs.exe2 }}" ${{ env.sources }}
       run: |
         mkdir -p "$build_dir"
-        ${{ steps.cfg.outputs.native == 'Linux' && '"$__cc" $__cflags -o "$built_exe" $sources
-        strip --strip-all "$built_exe"' || '' }}
-        ${{ steps.cfg.outputs.cross == 'Windows' && 'BIN="$msvc_bin_dir" . "$msvc_dir/msvcenv-native.sh"
-        export PATH="$msvc_bin_dir:$PATH"
-        "$__cc" --target=x86_64-windows-msvc $__cflags -o "$built_exe" $sources
-        cl /nologo /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /favor:AMD64 /arch:AVX2 /MT /Fe: "$built_exe2" $sources' || '' }}
-        ${{ steps.cfg.outputs.native == 'macOS' && '"$__cc" -arch arm64 $__cflags -o "$built_exe-arm64" $sources
-        "$__cc" -arch x86_64 $__cflags -o "$built_exe-x86_64" $sources
-        lipo -create -output "$built_exe" "$built_exe-arm64" "$built_exe-x86_64"' || '' }}
+        ${{ steps.cfg.outputs.native == 'Linux' && env.Linux }}
+        ${{ steps.cfg.outputs.native == 'macOS' && env.macOS }}
+        ${{ steps.cfg.outputs.cross == 'Windows' && env.Windows }}
 
     - name: Package
       uses: actions/upload-artifact@v4
