@@ -154,7 +154,7 @@ jobs:
           export PATH="${{ steps.env.outputs.msvc_bin_dir }}:$PATH"
           "${{ steps.cfg.outputs.cc }}" --target=$TARGET_TRIPLE ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }} || true
           cl /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "$build_dir/${{ steps.cfg.outputs.exe2 }}" ${{ steps.cfg.outputs.src }} || true
-          "${{ steps.cfg.outputs.clang-cl }}" /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "$build_dir/${{ steps.cfg.outputs.exe2 }}" ${{ steps.cfg.outputs.src }} || true
+          "${{ steps.cfg.outputs.clang-cl }}" /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "$build_dir/${{ steps.cfg.outputs.exe2 }}" -fuse-ld=lld ${{ steps.cfg.outputs.src }} || true
       run: |
         mkdir -p "$build_dir"
         ${{ steps.cfg.outputs.native == 'Linux' && env.Linux || '' }}
