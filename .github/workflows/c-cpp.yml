@@ -29,7 +29,7 @@ jobs:
     - name: id
       id: id
       run: |
-        printf '%s\n' "build=${{ matrix.os }}_${{ runner.os }}" \
+        printf '%s\n' "build=${{ matrix.os }}_${{ matrix.on }}" \
                "${{ matrix.os }}_${{ matrix.on }}=${{ matrix.os == runner.os && 'native' || 'cross' }}" \
                "${{ matrix.os }}_${{ runner.os }}=${{ matrix.on }}" \
                "${{ matrix.os == runner.os && 'native' || 'cross' }}=${{ matrix.os }}" >> "$GITHUB_OUTPUT"
@@ -44,12 +44,12 @@ jobs:
         ext: ${{ matrix.os == 'Windows' && '.exe' || '' }}
       run: |
         printf '%s\n' \
-               cc=${{ env.cc }} ${{ env.ccl && 'ccl=' || '' }}${{ env.ccl }} \
+               cc=${{ env.cc }} ${{ env.cl && 'cl=' || '' }}${{ env.cl }} ${{ env.ccl && 'ccl=' || '' }}${{ env.ccl }} \
                cflags="${{ env.baseflags }}${{ env.archflags }}" \
                exe=dbs26-${{ env.cc }}${{ env.ext }} \
                ${{ env.cl && 'exe_cl=dbs26-' || '' }}${{ env.cl }}${{ env.cl && env.ext || '' }} \
                ${{ env.ccl && 'exe_ccl=dbs26-' || '' }}${{ env.ccl }}${{ env.ccl && env.ext || '' }} \
-               pkg=dbs26-${{ matrix.os }}_${{ matrix.on }} \
+               pkg=dbs26-${{ steps.id.outputs.cross && steps.id.outputs.build || matrix.on }} \
                src="args.c dbs26.c" >> "$GITHUB_OUTPUT"
     - name: Update system packages
       env:
