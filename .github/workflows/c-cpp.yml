@@ -37,7 +37,7 @@ jobs:
       id: cfg
       env:
         target: ${{ matrix.os == runner.os && 'native' || 'cross' }}
-        exe: env.proj${{ env.ext }}
+        exe: ${{ env.proj }}${{ env.ext }}
       run: |
         printf '%s=%s\n' exe "${{ env.exe }}" ${{ matrix.os == 'Windows' && 'exe2 "cl-${{ env.exe }}" ' || '' }}\
                ${{ env.target }} ${{ matrix.os }} \
