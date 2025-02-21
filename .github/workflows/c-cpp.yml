@@ -37,16 +37,13 @@ jobs:
     - name: Set build config
       id: cfg
       env:
-        cross: ${{ matrix.os != runner.os && matrix.os || '' }}
-        native: ${{ matrix.os == runner.os && runner.os || '' }}
         exe: ${{ env.project }}${{ matrix.os == 'Windows' && '.exe' || '' }}
         wine: ${{ matrix.os == 'Windows' && runner.os != 'Windows' && 'WINEDEBUG=-all wine64 ' || '' }}
         zip: ${{ env.project }}-${{ matrix.os }}
       run: |
         printf '%s=%s\n' \
                exe "$exe" ${{ matrix.os == 'Windows' && 'exe2 "cl-$exe" ' || '' }}\
-               native "$native" \
-               cross "$cross" \
+               ${{ matrix.os == runner.os && 'native' || 'cross' }} ${{ matrix.os }} \
                wine "$wine" \
                zip "$zip" >> "$GITHUB_OUTPUT"
     - name: Install system updates
