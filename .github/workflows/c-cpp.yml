@@ -208,7 +208,7 @@ jobs:
           ${{ matrix.os == 'Linux' && 'try ./' || '' }}${{ matrix.os == 'Linux' && steps.cfg.outputs.exe || '' }}
         macOS: |
           ${{ matrix.os == 'macOS' && 'try arch -arm64 ./' || '' }}${{ matrix.os == 'macOS' && steps.cfg.outputs.exe || '' }}
-          ${{ matrix.os == 'macOS' && 'try arch -x86_64 ./' || '' }}${{ matrix.os == 'macOS' && steps.cfg.outputs.exe2 || '' }}
+          ${{ matrix.os == 'macOS' && 'try arch -x86_64 ./' || '' }}${{ matrix.os == 'macOS' && steps.cfg.outputs.exe || '' }}
         Windows: |
           ${{ matrix.os == 'Windows' && 'try ./' || '' }}${{ matrix.os == 'Windows' && steps.cfg.outputs.exe || '' }}
           ${{ matrix.os == 'Windows' && 'try ./' || '' }}${{ matrix.os == 'Windows' && steps.cfg.outputs.exe2 || '' }}
