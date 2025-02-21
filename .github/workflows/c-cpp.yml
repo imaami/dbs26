@@ -69,7 +69,6 @@ jobs:
       run: |
         ${{ steps.cfg.outputs.cross == 'Windows' && '
         [[ "$__msvc_path"     ]] || __msvc_path="msvc"
-        [[ "$__msvc_sdk_path" ]] || __msvc_sdk_path="$__msvc_path/sdk"
         [[ "$__msvc_dir"      ]] || __msvc_dir="$GITHUB_WORKSPACE/$__msvc_path"
         [[ "$__msvc_sdk_dir"  ]] || __msvc_sdk_dir="$__msvc_dir/sdk"
         [[ "$__msvc_bin_dir"  ]] || __msvc_bin_dir="$__msvc_sdk_dir/bin/x64"
@@ -150,7 +149,7 @@ jobs:
           "${{ steps.cfg.outputs.cc }}" -arch x86_64 ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}-x86_64" ${{ steps.cfg.outputs.src }}
           lipo -create -output "$build_dir/${{ steps.cfg.outputs.exe }}" "$build_dir/${{ steps.cfg.outputs.exe }}-arm64" "$build_dir/${{ steps.cfg.outputs.exe }}-x86_64"
         Windows: |
-          BIN="${{ steps.env.outputs.msvc_bin_dir }}" . "${{ steps.env.outputs.msvc_bin_dir }}/msvcenv-native.sh"
+          BIN="${{ steps.env.outputs.msvc_bin_dir }}" . "${{ steps.env.outputs.msvc_dir }}/msvcenv-native.sh"
           export PATH="${{ steps.env.outputs.msvc_bin_dir }}:$PATH"
           "${{ steps.cfg.outputs.cc }}" --target=x86_64-windows-msvc ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
           cl /nologo /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /favor:AMD64 /arch:AVX2 /MT /Fe: "$build_dir/${{ steps.cfg.outputs.exe2 }}" ${{ steps.cfg.outputs.src }}
