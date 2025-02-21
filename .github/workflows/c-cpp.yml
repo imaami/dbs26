@@ -164,8 +164,8 @@ jobs:
         ${{ steps.cfg.outputs.native == 'Linux' && '"$__cc" $__cflags -o "$built_exe" $sources
         strip --strip-all "$built_exe"' || '' }}
         ${{ steps.cfg.outputs.cross == 'Windows' && 'BIN="$msvc_bin_dir" . "$msvc_dir/msvcenv-native.sh"
-        "$__cc" --target=x86_64-windows-msvc $__cflags -o "$built_exe" $sources
         export PATH="$msvc_bin_dir:$PATH"
+        "$__cc" --target=x86_64-windows-msvc $__cflags -o "$built_exe" $sources
         cl /nologo /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /favor:AMD64 /arch:AVX2 /MT /Fe: "$built_exe2" $sources' || '' }}
         ${{ steps.cfg.outputs.native == 'macOS' && '"$__cc" -arch arm64 $__cflags -o "$built_exe-arm64" $sources
         "$__cc" -arch x86_64 $__cflags -o "$built_exe-x86_64" $sources
