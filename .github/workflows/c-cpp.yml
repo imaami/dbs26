@@ -33,7 +33,7 @@ jobs:
       run: |
         printf '%s=%s\n' \
                ${{ matrix.os == runner.os && 'native' || 'cross' }} ${{ matrix.os }} \
-               cc clang${{ runner.os == 'macOS' && '' || '-21' }} \
+               cc ${{ runner.os == 'macOS' && 'clang' || 'clang-21' }} \
                cflags "${{ env.cstandard }} ${{ env.baseflags }}${{ env.archflags }}" \
                exe dbs26${{ matrix.os == 'Windows' && '.exe exe2 cl-dbs26.exe' || '' }} \
                pkg dbs26-${{ matrix.os }} \
