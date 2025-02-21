@@ -30,18 +30,19 @@ jobs:
           - os: Windows
             on: ubuntu-24.04
     env:
-      project: dbs26
+      proj: dbs26
+      ext: ${{ matrix.os == 'Windows' && '.exe' || '' }}
     steps:
     - name: Set build config
       id: cfg
       env:
-        target_type: ${{ matrix.os == runner.os && 'native' || 'cross' }}
-        exe: ${{ env.project }}${{ matrix.os == 'Windows' && '.exe' || '' }}
+        target: ${{ matrix.os == runner.os && 'native' || 'cross' }}
+        exe: env.proj${{ env.ext }}
       run: |
-        printf '%s=%s\n' exe "$exe" ${{ matrix.os == 'Windows' && 'exe2 "cl-$exe" ' || '' }}\
-               ${{ env.target_type }} ${{ matrix.os }} \
+        printf '%s=%s\n' exe "${{ env.exe }}" ${{ matrix.os == 'Windows' && 'exe2 "cl-${{ env.exe }}" ' || '' }}\
+               ${{ env.target }} ${{ matrix.os }} \
                ${{ matrix.os == 'Windows' && runner.os != 'Windows' && 'wine "WINEDEBUG=-all wine64 " ' || '' }}\
-               archive "${{ env.project }}-${{ matrix.os }}" >> "$GITHUB_OUTPUT"
+               archive "dbs26-${{ matrix.os }}" >> "$GITHUB_OUTPUT"
     - name: Install system updates
       env:
         Linux: |
