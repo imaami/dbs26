@@ -11,41 +11,37 @@ defaults:
     shell: bash
 
 env:
-  __build_path: build
-  __dest_path: dest
   __nproc: nproc
   __cc: clang-21
   __cflags: -std=gnu23 -flto=full -fuse-ld=lld -O3 -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1 -march=x86-64-v3 -mtune=znver3
 
 jobs:
   build:
-    name: ${{ matrix.os }}${{ matrix.os != matrix.on && ' target on ' || '' }}${{ matrix.os != matrix.on && matrix.on || '' }}
-    runs-on: ${{ matrix.on == 'macOS' && 'macos-15' || 'ubuntu-24.04' }}
+    name: ${{ matrix.os }} target on ${{ matrix.on }}
+    runs-on: ${{ matrix.on }}
     strategy:
       matrix:
         os: [ Linux, macOS, Windows ]
         include:
           - os: Linux
-            on: Linux
+            on: ubuntu-24.04
           - os: macOS
-            on: macOS
+            on: macos-15
           - os: Windows
-            on: Linux
+            on: ubuntu-24.04
     env:
       project: dbs26
     steps:
     - name: Set build config
       id: cfg
       env:
+        target_type: ${{ matrix.os == runner.os && 'native' || 'cross' }}
         exe: ${{ env.project }}${{ matrix.os == 'Windows' && '.exe' || '' }}
-        wine: ${{ matrix.os == 'Windows' && runner.os != 'Windows' && 'WINEDEBUG=-all wine64 ' || '' }}
-        zip: ${{ env.project }}-${{ matrix.os }}
       run: |
-        printf '%s=%s\n' \
-               exe "$exe" ${{ matrix.os == 'Windows' && 'exe2 "cl-$exe" ' || '' }}\
-               ${{ matrix.os == runner.os && 'native' || 'cross' }} ${{ matrix.os }} \
-               wine "$wine" \
-               zip "$zip" >> "$GITHUB_OUTPUT"
+        printf '%s=%s\n' exe "$exe" ${{ matrix.os == 'Windows' && 'exe2 "cl-$exe" ' || '' }}\
+               ${{ env.target_type }} ${{ matrix.os }} \
+               ${{ matrix.os == 'Windows' && runner.os != 'Windows' && 'wine "WINEDEBUG=-all wine64 " ' || '' }}\
+               archive "${{ env.project }}-${{ matrix.os }}" >> "$GITHUB_OUTPUT"
     - name: Install system updates
       env:
         Linux: |
@@ -72,7 +68,6 @@ jobs:
     - name: Set env variables
       id: env
       env:
-        __msvc_path_Linux: ${{ matrix.os == 'Windows' && 'msvc' || '' }}
         __nproc_macOS: sysctl -n hw.logicalcpu
         __cc_macOS: clang
         __cflags_macOS: -std=gnu2x -flto=full -O3 -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1
@@ -90,21 +85,18 @@ jobs:
         def __cc
         def __cflags
         def __nproc
-        ${{ steps.cfg.outputs.wine && 'def __msvc_path
-        [[ "$__msvc_sdk_path" ]] || {
-          __msvc_sdk_path="$__msvc_path/sdk"
-          echo "__msvc_sdk_path=$__msvc_sdk_path" >> "$GITHUB_ENV"
-        }
-        [[ "$__msvc_dir"     ]] || __msvc_dir="$GITHUB_WORKSPACE/$__msvc_path"
-        [[ "$__msvc_sdk_dir" ]] || __msvc_sdk_dir="$__msvc_dir/sdk"
-        [[ "$__msvc_bin_dir" ]] || __msvc_bin_dir="$__msvc_sdk_dir/bin/x64"
+        ${{ steps.cfg.outputs.wine && '
+        [[ "$__msvc_path"     ]] || __msvc_path="msvc"
+        [[ "$__msvc_sdk_path" ]] || __msvc_sdk_path="$__msvc_path/sdk"
+        [[ "$__msvc_dir"      ]] || __msvc_dir="$GITHUB_WORKSPACE/$__msvc_path"
+        [[ "$__msvc_sdk_dir"  ]] || __msvc_sdk_dir="$__msvc_dir/sdk"
+        [[ "$__msvc_bin_dir"  ]] || __msvc_bin_dir="$__msvc_sdk_dir/bin/x64"
         printf "%s=%s\n" \
                msvc_dir "$__msvc_dir" \
                msvc_sdk_dir "$__msvc_sdk_dir" \
                msvc_bin_dir "$__msvc_bin_dir" >> "$GITHUB_OUTPUT"
         ' || '' }}
-        [[ "$__build_dir" ]] || __build_dir="$GITHUB_WORKSPACE/$__build_path"
-
+        [[ "$__build_dir" ]] || __build_dir="$GITHUB_WORKSPACE/build"
         printf "%s=%s\n" \
                build_dir "$__build_dir" \
                built_exe "$__build_dir/$exe" \
@@ -194,7 +186,7 @@ jobs:
     - name: Archive build artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ steps.cfg.outputs.zip }}
+        name: ${{ steps.cfg.outputs.archive }}
         path: |
           ${{ steps.env.outputs.built_exe }}
           ${{ steps.env.outputs.built_exe2 }}
