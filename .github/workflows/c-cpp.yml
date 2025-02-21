@@ -83,8 +83,10 @@ jobs:
         [[ "$msvc_path" ]] || msvc_path="msvc"
         [[ "$msvc_dir"  ]] || msvc_dir="$GITHUB_WORKSPACE/$msvc_path"
         [[ "$msvc_sdk"  ]] || msvc_sdk="$msvc_dir/sdk"
+        wine_cmd=wine64
+        command -v wine64 >/dev/null || wine_cmd=wine
         printf "%s=%s\n" \
-               wine "WINEDEBUG=-all wine64 " \
+               wine "WINEDEBUG=-all $wine_cmd " \
                msvc_dir "$msvc_dir" \
                msvc_sdk "$msvc_sdk" \
                msvc_bin "$msvc_sdk/bin/x64" >> "$GITHUB_OUTPUT"
