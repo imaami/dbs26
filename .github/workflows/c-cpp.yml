@@ -29,7 +29,7 @@ jobs:
       env:
         cstandard: -std=gnu2${{ runner.os == 'macOS' && 'x' || '3' }}
         baseflags: -flto=full -O3 -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1
-        archflags: ${{ matrix.os == 'macOS' && '' || ' -fuse-ld=lld' }}${{ matrix.os == 'Linux' && ' -march=x86-64-v3 -mtune=znver3' || '' }}
+        archflags: ${{ matrix.os != 'macOS' && ' -fuse-ld=lld' || '' }}${{ matrix.os == 'Linux' && ' -march=x86-64-v3 -mtune=znver3' || '' }}
       run: |
         printf '%s=%s\n' \
                ${{ matrix.os == runner.os && 'native' || 'cross' }} ${{ matrix.os }} \
