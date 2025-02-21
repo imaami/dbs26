@@ -15,6 +15,7 @@ jobs:
     name: ${{ matrix.os }} target on ${{ matrix.on }}
     runs-on: ${{ matrix.on }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ Linux, macOS, Windows ]
         on: [ ubuntu-24.04, macos-15, macos-14 ]
@@ -111,17 +112,22 @@ jobs:
         sudo apt-get install -y clang clang-21 lld \
                      lld-21 llvm-21-linker-tools' || '' }}${{ steps.id.outputs.Windows_Linux && ' \
                      ca-certificates msitools python3 winbind winehq-staging' || '' }}
-        ${{ runner.os == 'macOS' && '
-        set +e
-        PFX="$(brew --prefix)"
-        brew install coreutils gnu-sed' || '' }}${{ steps.id.outputs.Windows_macOS && ' \
-                     msitools wine@staging llvm lld binutils
-        PATH="$PFX/opt/llvm/bin:$PFX/opt/binutils/bin:$PATH"' || '' }}${{ runner.os == 'macOS' && '
-        export PATH="$PFX/opt/gnu-sed/libexec/gnubin:$PFX/opt/coreutils/libexec/gnubin:$PATH"
-        echo "PATH=$PATH" >> "$GITHUB_ENV"' || '' }}
+
+        ${{ runner.os == 'macOS' && 'set +e' || '' }}
+        ${{ steps.id.outputs.Windows_macOS && 'brew install msitools wine@staging' || '' }}
+
         ${{ steps.env.outputs.wine && 'mkdir -p "$msvc_sdk"
         "$msvc_dir/vsdownload.py" --accept-license --dest "$msvc_sdk"
         "$msvc_dir/install.sh" "$msvc_sdk"' || '' }}
+
+        ${{ runner.os == 'macOS' && 'brew install coreutils gnu-sed' || '' }}${{ steps.id.outputs.Windows_macOS && ' llvm lld binutils' || '' }}
+        ${{ runner.os == 'macOS' && 'PFX="$(brew --prefix)"
+        PATH="$PFX/opt/gnu-sed/libexec/gnubin:$PATH"
+        PATH="$PFX/opt/coreutils/libexec/gnubin:$PATH"' || '' }}
+        ${{ steps.id.outputs.Windows_macOS && '
+        PATH="$PFX/opt/binutils/bin:$PATH"
+        PATH="$PFX/opt/llvm/bin:$PATH"' || '' }}
+        ${{ runner.os == 'macOS' && 'echo "PATH=$PATH" >> "$GITHUB_ENV"' || '' }}
 
     - name: Introspect compilers
       run: |
