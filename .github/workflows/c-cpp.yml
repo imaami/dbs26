@@ -115,9 +115,9 @@ jobs:
         set +e
         PFX="$(brew --prefix)"
         brew install coreutils gnu-sed' || '' }}${{ steps.id.outputs.Windows_macOS && ' \
-                     msitools wine@staging llvm lld
-        PATH="$PFX/opt/llvm/bin:$PATH"' || '' }}${{ runner.os == 'macOS' && '
-        PATH="$PFX/opt/gnu-sed/libexec/gnubin:$PFX/opt/coreutils/libexec/gnubin:$PATH"
+                     msitools wine@staging llvm lld binutils
+        PATH="$PFX/opt/llvm/bin:$PFX/opt/binutils/bin:$PATH"' || '' }}${{ runner.os == 'macOS' && '
+        export PATH="$PFX/opt/gnu-sed/libexec/gnubin:$PFX/opt/coreutils/libexec/gnubin:$PATH"
         echo "PATH=$PATH" >> "$GITHUB_ENV"' || '' }}
         ${{ steps.env.outputs.wine && 'mkdir -p "$msvc_sdk"
         "$msvc_dir/vsdownload.py" --accept-license --dest "$msvc_sdk"
