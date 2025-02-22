@@ -37,15 +37,15 @@ jobs:
         cross: ${{ matrix.os != runner.os && matrix.os || '' }}
         cross_os: ${{ matrix.os != runner.os && runner.os || '' }}
         cross_on: ${{ matrix.os != runner.os && matrix.on || '' }}
-        kind: ${{ matrix.os == runner.os && matrix.on || runner.os }}
+        kind: ${{ matrix.os == runner.os && 'native' || 'cross' }}
       run: |
         printf '%s\n' \
                "os_on=${{ matrix.os }}_${{ matrix.on }}" \
                "os_os=${{ matrix.os }}_${{ runner.os }}" \
-               "${{ matrix.os }}_${{ matrix.on }}=${{ env.cross && 'cross' || 'native' }}" \
+               "${{ matrix.os }}_${{ matrix.on }}=${{ env.kind }}" \
                "${{ matrix.os }}_${{ runner.os }}=${{ env.cross_ }}${{ matrix.os }}" \
-               "${{ env.cross_ }}${{ matrix.os }}=${{ env.kind }}" \
-               "${{ matrix.os == runner.os && 'native' || 'cross' }}=${{ matrix.os }}" >> "$GITHUB_OUTPUT"
+               "${{ env.cross_ }}${{ matrix.os }}=${{ env.native_on }}${{ env.cross_os }}" \
+               "${{ env.kind }}=${{ matrix.os }}" >> "$GITHUB_OUTPUT"
     - name: Set build params
       id: cfg
       env:
@@ -176,10 +176,10 @@ jobs:
       working-directory: ${{ github.workspace }}/src
       env:
         build_dir: ${{ steps.env.outputs.build_dir }}
-        native_Linux: |
+        Linux: |
           "${{ steps.cfg.outputs.cc }}" ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
           strip --strip-all "$build_dir/${{ steps.cfg.outputs.exe }}"
-        native_macOS: |
+        macOS: |
           "${{ steps.cfg.outputs.cc }}" -arch arm64 ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}-arm64" ${{ steps.cfg.outputs.src }}
           "${{ steps.cfg.outputs.cc }}" -arch x86_64 ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}-x86_64" ${{ steps.cfg.outputs.src }}
           lipo -create -output "$build_dir/${{ steps.cfg.outputs.exe }}" "$build_dir/${{ steps.cfg.outputs.exe }}-arm64" "$build_dir/${{ steps.cfg.outputs.exe }}-x86_64"
