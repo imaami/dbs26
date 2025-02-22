@@ -39,38 +39,38 @@ jobs:
       run: |
         methods() {
           local x f y
-          for x in "pre_$1" "$1" "post_$1"; do
+          eval "$(for x in "pre_$1" "$1" "post_$1"; do
             ${{ matrix.os != runner.os && env.on_for || '' }}
             f="${x}_${{ env.type }}_${{ matrix.os }}"; y="${!f}"; [[ -z "${y// /}" ]] || { echo "$f"; continue; }
             f="${x}_${{ env.type }}"; y="${!f}"; [[ -z "${y// /}" ]] || { echo "$f"; continue; }
             f="${x}_on_${{ runner.os }}"; y="${!f}"; [[ -z "${y// /}" ]] || { echo "$f"; continue; }
             y="${!x}"; [[ -z "${y// /}" ]] || echo "$x"
-          done
+          done)"
         }
         __methods="$(declare -f methods)"
         if (( BASH_VERSINFO == 3 )); then
           __methods=$(printf 'eval %q' "$__methods")
         fi
         {
-          echo 'update_methods<<EOF'
+          echo 'update<<EOF'
           echo "$__methods"
           echo 'methods update'
           echo 'EOF'
         } >> "$GITHUB_OUTPUT"
         {
-          echo 'depends_methods<<EOF'
+          echo 'depends<<EOF'
           echo "$__methods"
           echo 'methods depends'
           echo 'EOF'
         } >> "$GITHUB_OUTPUT"
         {
-          echo 'compile_methods<<EOF'
+          echo 'compile<<EOF'
           echo "$__methods"
           echo 'methods compile'
           echo 'EOF'
         } >> "$GITHUB_OUTPUT"
         {
-          echo 'validate_methods<<EOF'
+          echo 'validate<<EOF'
           echo "$__methods"
           echo 'methods validate'
           echo 'EOF'
@@ -125,9 +125,7 @@ jobs:
           brew upgrade
           brew install bash' || '' }}
       run: |
-        ${{ steps.id.outputs.update_methods }}
-        ${{ steps.id.outputs.on_Linux_for_Windows && env.pre_update_on_Linux_for_Windows || '' }}
-        ${{ env.update_on_Linux || '' }}${{ env.update_on_macOS || '' }}
+        ${{ steps.id.outputs.update }}
     - name: Set env variables
       id: env
       run: |
@@ -160,7 +158,7 @@ jobs:
         msvc_dir: ${{ steps.env.outputs.msvc_dir }}
         msvc_sdk: ${{ steps.env.outputs.msvc_sdk }}
       run: |
-        ${{ steps.id.outputs.depends_methods }}
+        ${{ steps.id.outputs.depends }}
 
         ${{ steps.id.outputs.on_Linux && 'sudo apt-get install -y clang clang-21 lld lld-21 llvm-21-linker-tools' || '' }}
         ${{ steps.id.outputs.on_Linux_for_Windows && 'sudo apt-get install -y ca-certificates msitools python3 winbind winehq-staging' || '' }}
@@ -229,12 +227,8 @@ jobs:
           echo "\"${{ steps.cfg.outputs.ccl }}\" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: \"$build_dir/${{ steps.cfg.outputs.exe_ccl }}\" -fuse-ld=lld ${{ steps.cfg.outputs.src }}"
           "${{ steps.cfg.outputs.ccl }}" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "$build_dir/${{ steps.cfg.outputs.exe_ccl }}" -fuse-ld=lld ${{ steps.cfg.outputs.src }}
       run: |
-        ${{ steps.id.outputs.compile_methods }}
         mkdir -p "$build_dir"
-        ${{ steps.id.outputs.native_Linux && env.compile_native_Linux || '' }}
-        ${{ steps.id.outputs.native_macOS && env.compile_native_macOS || '' }}
-        ${{ steps.id.outputs.cross_Windows && env.compile_cross_Windows || '' }}
-        ${{ steps.id.outputs.on_Linux_for_Windows && env.post_compile_on_Linux_for_Windows || '' }}
+        ${{ steps.id.outputs.compile }}
 
     - name: Package
       uses: actions/upload-artifact@v4
@@ -276,11 +270,4 @@ jobs:
         post_validate_on_Linux_for_Windows: |
           ${{ steps.id.outputs.on_Linux_for_Windows && 'try ./' || '' }}${{ steps.id.outputs.on_Linux_for_Windows && steps.cfg.outputs.exe_ccl || '' }}
       run: |
-        ${{ steps.id.outputs.validate_methods }}
-        ${{ steps.id.outputs.on_macOS_for_Windows && env.pre_validate_on_macOS_for_Windows || '' }}
-        ${{ steps.id.outputs.cross_Windows && env.pre_validate_cross_Windows || '' }}
-        ${{ steps.id.outputs.native && env.pre_validate_native || '' }}
-        ${{ steps.id.outputs.native_Linux && env.validate_native_Linux || '' }}
-        ${{ steps.id.outputs.native_macOS && env.validate_native_macOS || '' }}
-        ${{ steps.id.outputs.cross_Windows && env.validate_cross_Windows || '' }}
-        ${{ steps.id.outputs.on_Linux_for_Windows && env.post_validate_on_Linux_for_Windows || '' }}
+        ${{ steps.id.outputs.validate }}
