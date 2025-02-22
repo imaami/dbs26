@@ -26,26 +26,24 @@ jobs:
             on: macos-14
           - os: macOS
             on: ubuntu-24.04
+    env:
+      build_id: ${{ matrix.os }}_${{ matrix.on }}
     steps:
     - name: id
       id: id
       env:
-        native_: ${{ matrix.os == runner.os && 'native_' || '' }}
-        cross_: ${{ matrix.os != runner.os && 'cross_' || '' }}
-        native_on: ${{ matrix.os == runner.os && matrix.on || '' }}
-        native: ${{ matrix.os == runner.os && matrix.os || '' }}
-        cross: ${{ matrix.os != runner.os && matrix.os || '' }}
-        cross_os: ${{ matrix.os != runner.os && runner.os || '' }}
-        cross_on: ${{ matrix.os != runner.os && matrix.on || '' }}
-        kind: ${{ matrix.os == runner.os && 'native' || 'cross' }}
+        build: ${{ matrix.os }}_${{ matrix.on }}
+        os_os: ${{ matrix.os }}_${{ runner.os }}
+        type: ${{ matrix.os == runner.os && 'native' || 'cross' }}
+        kind: ${{ matrix.os == runner.os && 'native' || 'cross' }}_${{ matrix.os }}
       run: |
         printf '%s\n' \
-               "os_on=${{ matrix.os }}_${{ matrix.on }}" \
-               "os_os=${{ matrix.os }}_${{ runner.os }}" \
-               "${{ matrix.os }}_${{ matrix.on }}=${{ env.kind }}" \
-               "${{ matrix.os }}_${{ runner.os }}=${{ env.cross_ }}${{ matrix.os }}" \
-               "${{ env.cross_ }}${{ matrix.os }}=${{ env.native_on }}${{ env.cross_os }}" \
-               "${{ env.kind }}=${{ matrix.os }}" >> "$GITHUB_OUTPUT"
+               "os_on=${{ env.os_on }}" \
+               "os_os=${{ env.os_os }}" \
+               "${{ env.os_on }}=${{ env.type }}" \
+               "${{ env.os_os }}=${{ env.kind }}" \
+               "${{ env.kind }}=${{ runner.os }}" \
+               "${{ env.type }}=${{ matrix.os }}" >> "$GITHUB_OUTPUT"
     - name: Set build params
       id: cfg
       env:
@@ -195,9 +193,10 @@ jobs:
           "${{ steps.cfg.outputs.ccl }}" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "$build_dir/${{ steps.cfg.outputs.exe_ccl }}" -fuse-ld=lld ${{ steps.cfg.outputs.src }}
       run: |
         mkdir -p "$build_dir"
-        ${{ steps.id.outputs.native == 'Linux' && env.Linux || '' }}
-        ${{ steps.id.outputs.native == 'macOS' && env.macOS || '' }}
-        ${{ steps.id.outputs.cross == 'Windows' && env.Windows || '' }}
+        ${{ steps.id.outputs.Linux && env.Linux || '' }}
+        ${{ steps.id.outputs.macOS && env.macOS || '' }}
+        ${{ steps.id.outputs.cross_Windows && env.cross_Windows || '' }}
+        ${{ steps.id.outputs.Windows_Linux && env.post_Windows_Linux || '' }}
 
     - name: Package
       uses: actions/upload-artifact@v4
