@@ -29,10 +29,22 @@ jobs:
     steps:
     - name: id
       id: id
+      env:
+        native_: ${{ matrix.os == runner.os && 'native_' || '' }}
+        cross_: ${{ matrix.os != runner.os && 'cross_' || '' }}
+        native_on: ${{ matrix.os == runner.os && matrix.on || '' }}
+        native: ${{ matrix.os == runner.os && matrix.os || '' }}
+        cross: ${{ matrix.os != runner.os && matrix.os || '' }}
+        cross_os: ${{ matrix.os != runner.os && runner.os || '' }}
+        cross_on: ${{ matrix.os != runner.os && matrix.on || '' }}
+        kind: ${{ matrix.os == runner.os && matrix.on || runner.os }}
       run: |
-        printf '%s\n' "build=${{ matrix.os }}_${{ matrix.on }}" \
-               "${{ matrix.os }}_${{ matrix.on }}=${{ matrix.os == runner.os && 'native' || 'cross' }}" \
-               "${{ matrix.os }}_${{ runner.os }}=${{ matrix.on }}" \
+        printf '%s\n' \
+               "os_on=${{ matrix.os }}_${{ matrix.on }}" \
+               "os_os=${{ matrix.os }}_${{ runner.os }}" \
+               "${{ matrix.os }}_${{ matrix.on }}=${{ env.cross && 'cross' || 'native' }}" \
+               "${{ matrix.os }}_${{ runner.os }}=${{ env.cross_ }}${{ matrix.os }}" \
+               "${{ env.cross_ }}${{ matrix.os }}=${{ env.kind }}" \
                "${{ matrix.os == runner.os && 'native' || 'cross' }}=${{ matrix.os }}" >> "$GITHUB_OUTPUT"
     - name: Set build params
       id: cfg
@@ -50,7 +62,7 @@ jobs:
                exe=dbs26-${{ env.cc }}${{ env.ext }} \
                ${{ env.cl && 'exe_cl=dbs26-' || '' }}${{ env.cl }}${{ env.cl && env.ext || '' }} \
                ${{ env.ccl && 'exe_ccl=dbs26-' || '' }}${{ env.ccl }}${{ env.ccl && env.ext || '' }} \
-               pkg=dbs26-${{ steps.id.outputs.cross && steps.id.outputs.build || matrix.on }} \
+               pkg=dbs26-${{ steps.id.outputs.cross && steps.id.outputs.os_on || matrix.on }} \
                src="args.c dbs26.c" >> "$GITHUB_OUTPUT"
     - name: Update system packages
       env:
@@ -164,20 +176,21 @@ jobs:
       working-directory: ${{ github.workspace }}/src
       env:
         build_dir: ${{ steps.env.outputs.build_dir }}
-        Linux: |
+        native_Linux: |
           "${{ steps.cfg.outputs.cc }}" ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
           strip --strip-all "$build_dir/${{ steps.cfg.outputs.exe }}"
-        macOS: |
+        native_macOS: |
           "${{ steps.cfg.outputs.cc }}" -arch arm64 ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}-arm64" ${{ steps.cfg.outputs.src }}
           "${{ steps.cfg.outputs.cc }}" -arch x86_64 ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}-x86_64" ${{ steps.cfg.outputs.src }}
           lipo -create -output "$build_dir/${{ steps.cfg.outputs.exe }}" "$build_dir/${{ steps.cfg.outputs.exe }}-arm64" "$build_dir/${{ steps.cfg.outputs.exe }}-x86_64"
-        Windows: |
+        cross_Windows: |
           BIN="${{ steps.env.outputs.msvc_bin }}" . "${{ steps.env.outputs.msvc_dir }}/msvcenv-native.sh"
           export PATH="${{ steps.env.outputs.msvc_bin }}:$PATH"
           echo "\"${{ steps.cfg.outputs.cc }}\" --target=$TARGET_TRIPLE ${{ steps.cfg.outputs.cflags }} -o \"$build_dir/${{ steps.cfg.outputs.exe }}\" ${{ steps.cfg.outputs.src }}"
           "${{ steps.cfg.outputs.cc }}" --target=$TARGET_TRIPLE ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
           echo "\"${{ steps.cfg.outputs.cl }}\" /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: \"$build_dir/${{ steps.cfg.outputs.exe_cl }}\" ${{ steps.cfg.outputs.src }}"
           "${{ steps.cfg.outputs.cl }}" /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "$build_dir/${{ steps.cfg.outputs.exe_cl }}" ${{ steps.cfg.outputs.src }}
+        post_Windows_Linux:
           echo "\"${{ steps.cfg.outputs.ccl }}\" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: \"$build_dir/${{ steps.cfg.outputs.exe_ccl }}\" -fuse-ld=lld ${{ steps.cfg.outputs.src }}"
           "${{ steps.cfg.outputs.ccl }}" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "$build_dir/${{ steps.cfg.outputs.exe_ccl }}" -fuse-ld=lld ${{ steps.cfg.outputs.src }}
       run: |
