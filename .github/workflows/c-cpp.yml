@@ -35,6 +35,7 @@ jobs:
         build: ${{ env.build_id }}
         on: on_${{ runner.os }}
         for: for_${{ matrix.os }}
+        on_for: on_${{ runner.os }}_for_${{ matrix.os }}=on_${{ runner.os }}_for_${{ matrix.os }}
         os_os: ${{ matrix.os }}_${{ runner.os }}
         type: ${{ matrix.os == runner.os && 'native' || 'cross' }}
         kind: ${{ matrix.os == runner.os && 'native' || 'cross' }}_${{ matrix.os }}
@@ -42,6 +43,7 @@ jobs:
         printf '%s\n' \
                "${{ env.on }}=${{ env.on }}" \
                "${{ env.for }}=${{ env.for }}" \
+               ${{ env.type == 'cross' && env.on_for || '' }} \
                "build=${{ env.build }}" \
                "os_os=${{ env.os_os }}" \
                "${{ env.build }}=${{ env.type }}" \
