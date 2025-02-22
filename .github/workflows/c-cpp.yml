@@ -33,11 +33,15 @@ jobs:
       id: id
       env:
         build: ${{ env.build_id }}
+        on: on_${{ runner.os }}
+        for: for_${{ matrix.os }}
         os_os: ${{ matrix.os }}_${{ runner.os }}
         type: ${{ matrix.os == runner.os && 'native' || 'cross' }}
-        kind: ${{ matrix.os }}_${{ matrix.os == runner.os && 'native' || 'cross' }}
+        kind: ${{ matrix.os == runner.os && 'native' || 'cross' }}_${{ matrix.os }}
       run: |
         printf '%s\n' \
+               "${{ env.on }}=${{ env.on }}" \
+               "${{ env.for }}=${{ env.for }}" \
                "build=${{ env.build }}" \
                "os_os=${{ env.os_os }}" \
                "${{ env.build }}=${{ env.type }}" \
@@ -47,12 +51,12 @@ jobs:
     - name: Set build params
       id: cfg
       env:
-        cc: ${{ runner.os == 'macOS' && 'clang' || 'clang-21' }}
-        cl: ${{ matrix.os == 'Windows' && 'cl' || '' }}
-        ccl: ${{ steps.id.outputs.Windows_Linux && 'clang-cl-21' || '' }}
-        baseflags: -std=gnu2${{ runner.os == 'macOS' && 'x' || '3' }} -flto=full -O3 -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1
-        archflags: ${{ matrix.os != 'macOS' && ' -fuse-ld=lld' || '' }}${{ matrix.os == 'Linux' && ' -march=x86-64-v3 -mtune=znver3' || '' }}
-        ext: ${{ matrix.os == 'Windows' && '.exe' || '' }}
+        cc: ${{ steps.id.outputs.on_macOS && 'clang' || 'clang-21' }}
+        cl: ${{ steps.id.outputs.for_Windows && 'cl' || '' }}
+        ccl: ${{ steps.id.outputs.on_Linux_for_Windows && 'clang-cl-21' || '' }}
+        baseflags: -std=gnu2${{ steps.id.outputs.on_macOS && 'x' || '3' }} -flto=full -O3 -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1
+        archflags: ${{ ! steps.id.outputs.for_macOS && ' -fuse-ld=lld' || '' }}${{ steps.id.outputs.for_Linux && ' -march=x86-64-v3 -mtune=znver3' || '' }}
+        ext: ${{ steps.id.outputs.for_Windows && '.exe' || '' }}
       run: |
         printf '%s\n' \
                cc=${{ env.cc }} ${{ env.cl && 'cl=' || '' }}${{ env.cl }} ${{ env.ccl && 'ccl=' || '' }}${{ env.ccl }} \
@@ -64,32 +68,34 @@ jobs:
                src="args.c dbs26.c" >> "$GITHUB_OUTPUT"
     - name: Update system packages
       env:
-        Linux: |
-          ${{ steps.id.outputs.Windows_Linux && 'sudo mkdir -pm755 /etc/apt/keyrings
+        pre_update_on_Linux_for_Windows: |
+          ${{ steps.id.outputs.on_Linux_for_Windows && 'sudo mkdir -pm755 /etc/apt/keyrings
           wget -qO- https://dl.winehq.org/wine-builds/winehq.key | \
           sudo gpg --dearmor -o /etc/apt/keyrings/winehq-archive.key -
           wget -qO- https://dl.winehq.org/wine-builds/ubuntu/dists/noble/winehq-noble.sources | \
           sudo tee /etc/apt/sources.list.d/winehq.sources
           sudo dpkg --add-architecture i386' || '' }}
-          ${{ runner.os == 'Linux' && '
+        update_on_Linux:
+          ${{ steps.id.outputs.on_Linux && '
           echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble main" | \
           sudo tee /etc/apt/sources.list.d/apt.llvm.org.list
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | \
           sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
           sudo apt-get update
           sudo apt-get upgrade -y' || '' }}
-        macOS: |
-          ${{ runner.os == 'macOS' && 'set +e
+        update_on_macOS:
+          ${{ steps.id.outputs.on_macOS && 'set +e
           brew update
           brew upgrade
           brew install bash' || '' }}
       run: |
-        ${{ runner.os == 'Linux' && env.Linux || '' }}
-        ${{ runner.os == 'macOS' && env.macOS || '' }}
+        ${{ steps.id.outputs.on_Linux_for_Windows && env.pre_update_on_Linux_for_Windows || '' }}
+        ${{ steps.id.outputs.on_Linux && env.update_on_Linux || '' }}
+        ${{ steps.id.outputs.on_macOS && env.update_on_macOS || '' }}
     - name: Set env variables
       id: env
       run: |
-        ${{ steps.id.outputs.Windows_cross && '
+        ${{ steps.id.outputs.cross_Windows && '
         [[ "$msvc_path" ]] || msvc_path="msvc"
         [[ "$msvc_dir"  ]] || msvc_dir="$GITHUB_WORKSPACE/$msvc_path"
         [[ "$msvc_sdk"  ]] || msvc_sdk="$msvc_dir/sdk"
@@ -121,26 +127,26 @@ jobs:
         msvc_dir: ${{ steps.env.outputs.msvc_dir }}
         msvc_sdk: ${{ steps.env.outputs.msvc_sdk }}
       run: |
-        ${{ runner.os == 'Linux' && '
+        ${{ steps.id.outputs.on_Linux && '
         sudo apt-get install -y clang clang-21 lld \
-                     lld-21 llvm-21-linker-tools' || '' }}${{ steps.id.outputs.Windows_Linux && ' \
+                     lld-21 llvm-21-linker-tools' || '' }}${{ steps.id.outputs.on_Linux_for_Windows && ' \
                      ca-certificates msitools python3 winbind winehq-staging' || '' }}
 
-        ${{ runner.os == 'macOS' && 'set +e' || '' }}
-        ${{ steps.id.outputs.Windows_macOS && 'brew install msitools wine@staging' || '' }}
+        ${{ steps.id.outputs.on_macOS && 'set +e' || '' }}
+        ${{ steps.id.outputs.on_macOS_for_Windows && 'brew install msitools wine@staging' || '' }}
 
         ${{ steps.env.outputs.wine && 'mkdir -p "$msvc_sdk"
         "$msvc_dir/vsdownload.py" --accept-license --dest "$msvc_sdk"
         "$msvc_dir/install.sh" "$msvc_sdk"' || '' }}
 
-        ${{ runner.os == 'macOS' && 'brew install coreutils gnu-sed' || '' }}${{ steps.id.outputs.Windows_macOS && ' llvm lld binutils' || '' }}
-        ${{ runner.os == 'macOS' && 'PFX="$(brew --prefix)"
+        ${{ steps.id.outputs.on_macOS && 'brew install coreutils gnu-sed' || '' }}${{ steps.id.outputs.on_macOS_for_Windows && ' llvm lld binutils' || '' }}
+        ${{ steps.id.outputs.on_macOS && 'PFX="$(brew --prefix)"
         PATH="$PFX/opt/gnu-sed/libexec/gnubin:$PATH"
         PATH="$PFX/opt/coreutils/libexec/gnubin:$PATH"' || '' }}
         ${{ steps.id.outputs.Windows_macOS && '
         PATH="$PFX/opt/binutils/bin:$PATH"
         PATH="$PFX/opt/llvm/bin:$PATH"' || '' }}
-        ${{ runner.os == 'macOS' && 'echo "PATH=$PATH" >> "$GITHUB_ENV"' || '' }}
+        ${{ steps.id.outputs.on_macOS && 'echo "PATH=$PATH" >> "$GITHUB_ENV"' || '' }}
 
     - name: Introspect compilers
       run: |
@@ -174,29 +180,29 @@ jobs:
       working-directory: ${{ github.workspace }}/src
       env:
         build_dir: ${{ steps.env.outputs.build_dir }}
-        Linux: |
+        compile_native_Linux: |
           "${{ steps.cfg.outputs.cc }}" ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
           strip --strip-all "$build_dir/${{ steps.cfg.outputs.exe }}"
-        macOS: |
+        compile_native_macOS: |
           "${{ steps.cfg.outputs.cc }}" -arch arm64 ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}-arm64" ${{ steps.cfg.outputs.src }}
           "${{ steps.cfg.outputs.cc }}" -arch x86_64 ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}-x86_64" ${{ steps.cfg.outputs.src }}
           lipo -create -output "$build_dir/${{ steps.cfg.outputs.exe }}" "$build_dir/${{ steps.cfg.outputs.exe }}-arm64" "$build_dir/${{ steps.cfg.outputs.exe }}-x86_64"
-        Windows_cross: |
+        compile_cross_Windows: |
           BIN="${{ steps.env.outputs.msvc_bin }}" . "${{ steps.env.outputs.msvc_dir }}/msvcenv-native.sh"
           export PATH="${{ steps.env.outputs.msvc_bin }}:$PATH"
           echo "\"${{ steps.cfg.outputs.cc }}\" --target=$TARGET_TRIPLE ${{ steps.cfg.outputs.cflags }} -o \"$build_dir/${{ steps.cfg.outputs.exe }}\" ${{ steps.cfg.outputs.src }}"
           "${{ steps.cfg.outputs.cc }}" --target=$TARGET_TRIPLE ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
           echo "\"${{ steps.cfg.outputs.cl }}\" /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: \"$build_dir/${{ steps.cfg.outputs.exe_cl }}\" ${{ steps.cfg.outputs.src }}"
           "${{ steps.cfg.outputs.cl }}" /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "$build_dir/${{ steps.cfg.outputs.exe_cl }}" ${{ steps.cfg.outputs.src }}
-        post_Windows_Linux: |
+        post_compile_on_Linux_for_Windows: |
           echo "\"${{ steps.cfg.outputs.ccl }}\" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: \"$build_dir/${{ steps.cfg.outputs.exe_ccl }}\" -fuse-ld=lld ${{ steps.cfg.outputs.src }}"
           "${{ steps.cfg.outputs.ccl }}" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "$build_dir/${{ steps.cfg.outputs.exe_ccl }}" -fuse-ld=lld ${{ steps.cfg.outputs.src }}
       run: |
         mkdir -p "$build_dir"
-        ${{ steps.id.outputs.Linux && env.Linux || '' }}
-        ${{ steps.id.outputs.macOS && env.macOS || '' }}
-        ${{ steps.id.outputs.Windows_cross && env.Windows_cross || '' }}
-        ${{ steps.id.outputs.Windows_Linux && env.post_Windows_Linux || '' }}
+        ${{ steps.id.outputs.native_Linux && env.compile_native_Linux || '' }}
+        ${{ steps.id.outputs.native_macOS && env.compile_native_macOS || '' }}
+        ${{ steps.id.outputs.cross_Windows && env.compile_cross_Windows || '' }}
+        ${{ steps.id.outputs.on_Linux_for_Windows && env.post_compile_on_Linux_for_Windows || '' }}
 
     - name: Package
       uses: actions/upload-artifact@v4
@@ -210,21 +216,33 @@ jobs:
     - name: Validate
       working-directory: ${{ steps.env.outputs.build_dir }}
       env:
-        Linux: |
-          ${{ matrix.os == 'Linux' && 'try ./' || '' }}${{ matrix.os == 'Linux' && steps.cfg.outputs.exe || '' }}
-        macOS: |
-          ${{ matrix.os == 'macOS' && 'try arch -arm64 ./' || '' }}${{ matrix.os == 'macOS' && steps.cfg.outputs.exe || '' }}
-          ${{ matrix.os == 'macOS' && 'try arch -x86_64 ./' || '' }}${{ matrix.os == 'macOS' && steps.cfg.outputs.exe || '' }}
-        Windows: |
-          ${{ matrix.os == 'Windows' && 'try ./' || '' }}${{ matrix.os == 'Windows' && steps.cfg.outputs.exe || '' }}
-          ${{ matrix.os == 'Windows' && 'try ./' || '' }}${{ matrix.os == 'Windows' && steps.cfg.outputs.exe_cl || '' }}
-          ${{ matrix.os == 'Windows' && 'try ./' || '' }}${{ matrix.os == 'Windows' && steps.cfg.outputs.exe_ccl || '' }}
+        out: ${{ runner.temp }}/test.bin
+        pre_validate_on_macOS_for_Windows: |
+          ${{ steps.id.outputs.on_macOS_for_Windows && 'try() {
+            WINEDEBUG=-all wine "$@" -o -     | sha1sum       ; rm -f "$out"
+            WINEDEBUG=-all wine "$@" -o "$out"; sha1sum "$out"; rm -f "$out"
+          }' || '' }}
+        pre_validate_cross_Windows: |
+          ${{ steps.id.outputs.cross_Windows && 'try() {
+            WINEDEBUG=-all wine64 "$@" -o -     | sha1sum       ; rm -f "$out"
+            WINEDEBUG=-all wine64 "$@" -o "$out"; sha1sum "$out"; rm -f "$out"
+          }' || '' }}
+        pre_validate_native: |
+          ${{ steps.id.outputs.native && 'try() {
+            "$@" -o -     | sha1sum       ; rm -f "$out"
+            "$@" -o "$out"; sha1sum "$out"; rm -f "$out"
+          }' || '' }}
+        validate_native_Linux: |
+          ${{ steps.id.outputs.native_Linux && 'try ./' || '' }}${{ steps.id.outputs.native_Linux && steps.cfg.outputs.exe || '' }}
+        validate_native_macOS: |
+          ${{ steps.id.outputs.native_macOS && 'try arch -arm64 ./' || '' }}${{ steps.id.outputs.native_macOS && steps.cfg.outputs.exe || '' }}
+          ${{ steps.id.outputs.native_macOS && 'try arch -x86_64 ./' || '' }}${{ steps.id.outputs.native_macOS && steps.cfg.outputs.exe || '' }}
+        validate_cross_Windows: |
+          ${{ steps.id.outputs.cross_Windows && 'try ./' || '' }}${{ steps.id.outputs.cross_Windows && steps.cfg.outputs.exe || '' }}
+          ${{ steps.id.outputs.cross_Windows && 'try ./' || '' }}${{ steps.id.outputs.cross_Windows && steps.cfg.outputs.exe_cl || '' }}
+        post_validate_on_Linux_for_Windows: |
+          ${{ steps.id.outputs.on_Linux_for_Windows && 'try ./' || '' }}${{ steps.id.outputs.on_Linux_for_Windows && steps.cfg.outputs.exe_ccl || '' }}
       run: |
-        try() {
-          local f="$RUNNER_TEMP/test.bin"
-          ${{ steps.env.outputs.wine }}"$@" -o -   | sha1sum     ; rm -f "$f"
-          ${{ steps.env.outputs.wine }}"$@" -o "$f"; sha1sum "$f"; rm -f "$f"
-        }
-        ${{ matrix.os == 'Linux' && env.Linux || '' }}
-        ${{ matrix.os == 'macOS' && env.macOS || '' }}
-        ${{ matrix.os == 'Windows' && env.Windows || '' }}
+        ${{ env.pre_validate_on_macOS_for_Windows || env.pre_validate_cross_Windows || '' }}${{ env.pre_validate_native }}
+        ${{ env.validate_native_Linux }}${{ env.validate_native_macOS }}${{ env.validate_cross_Windows }}
+        ${{ env.post_validate_on_Linux_for_Windows }}
