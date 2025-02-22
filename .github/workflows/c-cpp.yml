@@ -32,15 +32,15 @@ jobs:
     - name: id
       id: id
       env:
-        build: ${{ build_id }}
+        build: ${{ env.build_id }}
         os_os: ${{ matrix.os }}_${{ runner.os }}
         type: ${{ matrix.os == runner.os && 'native' || 'cross' }}
-        kind: ${{ matrix.os == runner.os && 'native' || 'cross' }}_${{ matrix.os }}
+        kind: ${{ matrix.os }}_${{ matrix.os == runner.os && 'native' || 'cross' }}
       run: |
         printf '%s\n' \
                "build=${{ env.build }}" \
                "os_os=${{ env.os_os }}" \
-               "${{ env.os_on }}=${{ env.type }}" \
+               "${{ env.build }}=${{ env.type }}" \
                "${{ env.os_os }}=${{ env.kind }}" \
                "${{ env.kind }}=${{ runner.os }}" \
                "${{ env.type }}=${{ matrix.os }}" >> "$GITHUB_OUTPUT"
@@ -89,7 +89,7 @@ jobs:
     - name: Set env variables
       id: env
       run: |
-        ${{ steps.id.outputs.cross == 'Windows' && '
+        ${{ steps.id.outputs.Windows_cross && '
         [[ "$msvc_path" ]] || msvc_path="msvc"
         [[ "$msvc_dir"  ]] || msvc_dir="$GITHUB_WORKSPACE/$msvc_path"
         [[ "$msvc_sdk"  ]] || msvc_sdk="$msvc_dir/sdk"
@@ -181,7 +181,7 @@ jobs:
           "${{ steps.cfg.outputs.cc }}" -arch arm64 ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}-arm64" ${{ steps.cfg.outputs.src }}
           "${{ steps.cfg.outputs.cc }}" -arch x86_64 ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}-x86_64" ${{ steps.cfg.outputs.src }}
           lipo -create -output "$build_dir/${{ steps.cfg.outputs.exe }}" "$build_dir/${{ steps.cfg.outputs.exe }}-arm64" "$build_dir/${{ steps.cfg.outputs.exe }}-x86_64"
-        cross_Windows: |
+        Windows_cross: |
           BIN="${{ steps.env.outputs.msvc_bin }}" . "${{ steps.env.outputs.msvc_dir }}/msvcenv-native.sh"
           export PATH="${{ steps.env.outputs.msvc_bin }}:$PATH"
           echo "\"${{ steps.cfg.outputs.cc }}\" --target=$TARGET_TRIPLE ${{ steps.cfg.outputs.cflags }} -o \"$build_dir/${{ steps.cfg.outputs.exe }}\" ${{ steps.cfg.outputs.src }}"
@@ -195,7 +195,7 @@ jobs:
         mkdir -p "$build_dir"
         ${{ steps.id.outputs.Linux && env.Linux || '' }}
         ${{ steps.id.outputs.macOS && env.macOS || '' }}
-        ${{ steps.id.outputs.cross_Windows && env.cross_Windows || '' }}
+        ${{ steps.id.outputs.Windows_cross && env.Windows_cross || '' }}
         ${{ steps.id.outputs.Windows_Linux && env.post_Windows_Linux || '' }}
 
     - name: Package
