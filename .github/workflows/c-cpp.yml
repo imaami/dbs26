@@ -77,7 +77,7 @@ jobs:
           wget -qO- https://dl.winehq.org/wine-builds/ubuntu/dists/noble/winehq-noble.sources | \
           sudo tee /etc/apt/sources.list.d/winehq.sources
           sudo dpkg --add-architecture i386' || '' }}
-        update_on_Linux:
+        update_on_Linux: |
           ${{ steps.id.outputs.on_Linux && '
           echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble main" | \
           sudo tee /etc/apt/sources.list.d/apt.llvm.org.list
@@ -85,7 +85,7 @@ jobs:
           sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
           sudo apt-get update
           sudo apt-get upgrade -y' || '' }}
-        update_on_macOS:
+        update_on_macOS: |
           ${{ steps.id.outputs.on_macOS && 'set +e
           brew update
           brew upgrade
