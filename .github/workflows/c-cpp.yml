@@ -231,6 +231,10 @@ jobs:
         post_validate_on_Linux_for_Windows: |
           ${{ steps.id.outputs.on_Linux_for_Windows && 'try ./' || '' }}${{ steps.id.outputs.on_Linux_for_Windows && steps.cfg.outputs.exe_ccl || '' }}
       run: |
-        ${{ env.pre_validate_on_macOS_for_Windows || env.pre_validate_cross_Windows || '' }}${{ env.pre_validate_native }}
-        ${{ env.validate_native_Linux }}${{ env.validate_native_macOS }}${{ env.validate_cross_Windows }}
-        ${{ env.post_validate_on_Linux_for_Windows }}
+        ${{ steps.id.outputs.on_macOS_for_Windows && env.pre_validate_on_macOS_for_Windows || '' }}
+        ${{ steps.id.outputs.cross_Windows && env.pre_validate_cross_Windows || '' }}
+        ${{ steps.id.outputs.native && env.pre_validate_native || '' }}
+        ${{ steps.id.outputs.native_Linux && env.validate_native_Linux || '' }}
+        ${{ steps.id.outputs.native_macOS && env.validate_native_macOS || '' }}
+        ${{ steps.id.outputs.cross_Windows && env.validate_cross_Windows || '' }}
+        ${{ steps.id.outputs.on_Linux_for_Windows && env.post_validate_on_Linux_for_Windows || '' }}
