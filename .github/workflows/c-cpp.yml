@@ -204,6 +204,7 @@ jobs:
     - name: Validate
       working-directory: ${{ steps.env.outputs.build_dir }}
       env:
+        pre: pre_validate_${{ steps.id.outputs.on_macOS_for_Windows || steps.id.outputs.on_Linux_for_Windows || steps.id.outputs.cross_Windows || steps.id.outputs.cross_Windows || steps.id.outputs.native || '' }}
         out: ${{ runner.temp }}/test.bin
         pre_validate_on_macOS_for_Windows: |
           ${{ steps.id.outputs.on_macOS_for_Windows && 'try() {
@@ -231,6 +232,7 @@ jobs:
         post_validate_on_Linux_for_Windows: |
           ${{ steps.id.outputs.on_Linux_for_Windows && 'try ./' || '' }}${{ steps.id.outputs.on_Linux_for_Windows && steps.cfg.outputs.exe_ccl || '' }}
       run: |
+        echo "[${!pre}]"
         ${{ steps.id.outputs.on_macOS_for_Windows && env.pre_validate_on_macOS_for_Windows || '' }}
         ${{ steps.id.outputs.cross_Windows && env.pre_validate_cross_Windows || '' }}
         ${{ steps.id.outputs.native && env.pre_validate_native || '' }}
