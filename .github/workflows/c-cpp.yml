@@ -52,7 +52,7 @@ jobs:
           __methods=$(printf 'eval %q' "$__methods")
         fi
         {
-          echo 'METHODS<<EOF'
+          echo 'methods<<EOF'
           echo "$__methods"
           echo 'EOF'
         } >> "$GITHUB_OUTPUT"
@@ -75,7 +75,6 @@ jobs:
         archflags: ${{ ! steps.id.outputs.for_macOS && ' -fuse-ld=lld' || '' }}${{ steps.id.outputs.for_Linux && ' -march=x86-64-v3 -mtune=znver3' || '' }}
         ext: ${{ steps.id.outputs.for_Windows && '.exe' || '' }}
       run: |
-        ${{ steps.id.outputs.METHODS }}
         printf '%s\n' \
                cc=${{ env.cc }} ${{ env.cl && 'cl=' || '' }}${{ env.cl }} ${{ env.ccl && 'ccl=' || '' }}${{ env.ccl }} \
                cflags="${{ env.baseflags }}${{ env.archflags }}" \
@@ -107,6 +106,7 @@ jobs:
           brew upgrade
           brew install bash' || '' }}
       run: |
+        ${{ steps.id.outputs.methods }} methods update
         ${{ steps.id.outputs.on_Linux_for_Windows && env.pre_update_on_Linux_for_Windows || '' }}
         ${{ env.update_on_Linux || '' }}${{ env.update_on_macOS || '' }}
     - name: Set env variables
@@ -141,6 +141,8 @@ jobs:
         msvc_dir: ${{ steps.env.outputs.msvc_dir }}
         msvc_sdk: ${{ steps.env.outputs.msvc_sdk }}
       run: |
+        ${{ steps.id.outputs.methods }} methods depends
+
         ${{ steps.id.outputs.on_Linux && 'sudo apt-get install -y clang clang-21 lld lld-21 llvm-21-linker-tools' || '' }}
         ${{ steps.id.outputs.on_Linux_for_Windows && 'sudo apt-get install -y ca-certificates msitools python3 winbind winehq-staging' || '' }}
 
@@ -208,6 +210,7 @@ jobs:
           echo "\"${{ steps.cfg.outputs.ccl }}\" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: \"$build_dir/${{ steps.cfg.outputs.exe_ccl }}\" -fuse-ld=lld ${{ steps.cfg.outputs.src }}"
           "${{ steps.cfg.outputs.ccl }}" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "$build_dir/${{ steps.cfg.outputs.exe_ccl }}" -fuse-ld=lld ${{ steps.cfg.outputs.src }}
       run: |
+        ${{ steps.id.outputs.methods }} methods compile
         mkdir -p "$build_dir"
         ${{ steps.id.outputs.native_Linux && env.compile_native_Linux || '' }}
         ${{ steps.id.outputs.native_macOS && env.compile_native_macOS || '' }}
@@ -254,6 +257,7 @@ jobs:
         post_validate_on_Linux_for_Windows: |
           ${{ steps.id.outputs.on_Linux_for_Windows && 'try ./' || '' }}${{ steps.id.outputs.on_Linux_for_Windows && steps.cfg.outputs.exe_ccl || '' }}
       run: |
+        ${{ steps.id.outputs.methods }} methods validate
         ${{ steps.id.outputs.on_macOS_for_Windows && env.pre_validate_on_macOS_for_Windows || '' }}
         ${{ steps.id.outputs.cross_Windows && env.pre_validate_cross_Windows || '' }}
         ${{ steps.id.outputs.native && env.pre_validate_native || '' }}
