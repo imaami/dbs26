@@ -42,8 +42,8 @@ jobs:
                ${{ env.on_ }}${{ env._for_ }}${{ env._on_ }}${{ env._for_ }} \
                "build=${{ matrix.os != runner.os && env.os_ || '' }}${{ matrix.on }}" \
                "${{ matrix.os }}_${{ runner.os }}=${{ env.type }}_${{ matrix.os }}" \
-               "${{ env.type }}_${{ matrix.os }}=${{ runner.os }}" \
-               "${{ env.type }}=${{ matrix.os }}" >> "$GITHUB_OUTPUT"
+               "${{ env.type }}_${{ matrix.os }}=${{ env.type }}_${{ matrix.os }}" \
+               "${{ env.type }}=${{ env.type }}" >> "$GITHUB_OUTPUT"
     - name: Set build params
       id: cfg
       env:
