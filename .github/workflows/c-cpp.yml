@@ -39,13 +39,13 @@ jobs:
       run: |
         methods() {
           local x f y
-          eval "$(for x in "pre_$1" "$1" "post_$1"; do
+          for x in "pre_$1" "$1" "post_$1"; do
             ${{ matrix.os != runner.os && env.on_for || '' }}
-            f="${x}_${{ env.type }}_${{ matrix.os }}"; y="${!f}"; [[ -z "${y// /}" ]] || { echo "$f"; continue; }
-            f="${x}_${{ env.type }}"; y="${!f}"; [[ -z "${y// /}" ]] || { echo "$f"; continue; }
-            f="${x}_on_${{ runner.os }}"; y="${!f}"; [[ -z "${y// /}" ]] || { echo "$f"; continue; }
-            y="${!x}"; [[ -z "${y// /}" ]] || echo "$x"
-          done)"
+            f="${x}_${{ env.type }}_${{ matrix.os }}"; y="${!f}"; [[ -z "${y// /}" ]] || { echo "$y"; continue; }
+            f="${x}_${{ env.type }}"; y="${!f}"; [[ -z "${y// /}" ]] || { echo "$y"; continue; }
+            f="${x}_on_${{ runner.os }}"; y="${!f}"; [[ -z "${y// /}" ]] || { echo "$y"; continue; }
+            y="${!x}"; [[ -z "${y// /}" ]] || echo "$y"
+          done
         }
         __methods="$(declare -f methods)"
         if (( BASH_VERSINFO == 3 )); then
@@ -54,25 +54,25 @@ jobs:
         {
           echo 'update<<EOF'
           echo "$__methods"
-          echo 'methods update'
+          echo 'eval "$(methods update)"'
           echo 'EOF'
         } >> "$GITHUB_OUTPUT"
         {
           echo 'depends<<EOF'
           echo "$__methods"
-          echo 'methods depends'
+          echo 'eval "$(methods depends)"'
           echo 'EOF'
         } >> "$GITHUB_OUTPUT"
         {
           echo 'compile<<EOF'
           echo "$__methods"
-          echo 'methods compile'
+          echo 'eval "$(methods compile)"'
           echo 'EOF'
         } >> "$GITHUB_OUTPUT"
         {
           echo 'validate<<EOF'
           echo "$__methods"
-          echo 'methods validate'
+          echo 'eval "$(methods validate)"'
           echo 'EOF'
         } >> "$GITHUB_OUTPUT"
 
