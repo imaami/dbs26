@@ -31,16 +31,17 @@ jobs:
       id: id
       env:
         os_: ${{ matrix.os }}_
-        on_for: on_${{ runner.os }}_for_${{ matrix.os }}=on_${{ runner.os }}_for_${{ matrix.os }}
-        os_os: ${{ matrix.os }}_${{ runner.os }}
+        _for_: ${{ matrix.os != runner.os && '_for_' || '' }}${{ matrix.os != runner.os && matrix.os || '' }}
+        on_: ${{ matrix.os != runner.os && 'on_' || '' }}${{ matrix.os != runner.os && runner.os || '' }}
+        _on_: ${{ matrix.os != runner.os && '=on_' || '' }}${{ matrix.os != runner.os && runner.os || '' }}
         type: ${{ matrix.os == runner.os && 'native' || 'cross' }}
       run: |
         printf '%s\n' \
                "on_${{ runner.os }}=on_${{ runner.os }}" \
                "for_${{ matrix.os }}=for_${{ matrix.os }}" \
-               ${{ env.type == 'cross' && env.on_for || '' }} \
-               "build=${{ matrix.os != runner.os && env.os_ || '' }}${{ runner.os }}" \
-               "${{ env.os_os }}=${{ env.type }}_${{ matrix.os }}" \
+               ${{ env.on_ }}${{ env._for_ }}${{ env._on_ }}${{ env._for_ }} \
+               "build=${{ matrix.os != runner.os && env.os_ || '' }}${{ matrix.on }}" \
+               "${{ matrix.os }}_${{ runner.os }}=${{ env.type }}_${{ matrix.os }}" \
                "${{ env.type }}_${{ matrix.os }}=${{ runner.os }}" \
                "${{ env.type }}=${{ matrix.os }}" >> "$GITHUB_OUTPUT"
     - name: Set build params
