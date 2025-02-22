@@ -39,7 +39,7 @@ jobs:
       env:
         cc: ${{ runner.os == 'macOS' && 'clang' || 'clang-21' }}
         cl: ${{ matrix.os == 'Windows' && 'cl' || '' }}
-        ccl: ${{ steps.id.outputs.Windows_macOS && 'clang-cl' || '' }}${{ steps.id.outputs.Windows_Linux && 'clang-cl-21' || '' }}
+        ccl: ${{ steps.id.outputs.Windows_Linux && 'clang-cl-21' || '' }}
         baseflags: -std=gnu2${{ runner.os == 'macOS' && 'x' || '3' }} -flto=full -O3 -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1
         archflags: ${{ matrix.os != 'macOS' && ' -fuse-ld=lld' || '' }}${{ matrix.os == 'Linux' && ' -march=x86-64-v3 -mtune=znver3' || '' }}
         ext: ${{ matrix.os == 'Windows' && '.exe' || '' }}
@@ -174,11 +174,12 @@ jobs:
         Windows: |
           BIN="${{ steps.env.outputs.msvc_bin }}" . "${{ steps.env.outputs.msvc_dir }}/msvcenv-native.sh"
           export PATH="${{ steps.env.outputs.msvc_bin }}:$PATH"
-          echo "${{ steps.cfg.outputs.cc }} --target=$TARGET_TRIPLE ${{ steps.cfg.outputs.cflags }} -o $build_dir/${{ steps.cfg.outputs.exe }} ${{ steps.cfg.outputs.src }}"
-          "${{ steps.cfg.outputs.cc }}" --target=$TARGET_TRIPLE ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }} || true
-          echo "${{ steps.cfg.outputs.cl }} /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: $build_dir/${{ steps.cfg.outputs.exe_cl }} ${{ steps.cfg.outputs.src }}"
-          "${{ steps.cfg.outputs.cl }}" /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "$build_dir/${{ steps.cfg.outputs.exe_cl }}" ${{ steps.cfg.outputs.src }} || true
-          "${{ steps.cfg.outputs.ccl }}" /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "$build_dir/${{ steps.cfg.outputs.exe_ccl }}" -fuse-ld=lld ${{ steps.cfg.outputs.src }} || true
+          echo "\"${{ steps.cfg.outputs.cc }}\" --target=$TARGET_TRIPLE ${{ steps.cfg.outputs.cflags }} -o \"$build_dir/${{ steps.cfg.outputs.exe }}\" ${{ steps.cfg.outputs.src }}"
+          "${{ steps.cfg.outputs.cc }}" --target=$TARGET_TRIPLE ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
+          echo "\"${{ steps.cfg.outputs.cl }}\" /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: \"$build_dir/${{ steps.cfg.outputs.exe_cl }}\" ${{ steps.cfg.outputs.src }}"
+          "${{ steps.cfg.outputs.cl }}" /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "$build_dir/${{ steps.cfg.outputs.exe_cl }}" ${{ steps.cfg.outputs.src }}
+          echo "\"${{ steps.cfg.outputs.ccl }}\" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: \"$build_dir/${{ steps.cfg.outputs.exe_ccl }}\" -fuse-ld=lld ${{ steps.cfg.outputs.src }}"
+          "${{ steps.cfg.outputs.ccl }}" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "$build_dir/${{ steps.cfg.outputs.exe_ccl }}" -fuse-ld=lld ${{ steps.cfg.outputs.src }}
       run: |
         mkdir -p "$build_dir"
         ${{ steps.id.outputs.native == 'Linux' && env.Linux || '' }}
