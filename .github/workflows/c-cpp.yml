@@ -47,7 +47,11 @@ jobs:
             y="${!x}"; [[ -z "${y// /}" ]] || echo "$x"
           done
         }
-        declare -fp methods
+        __methods="$(declare -f methods)"
+        if (( BASH_VERSINFO == 3 )); then
+          __methods=$(printf 'eval %q' "$__methods")
+        fi
+        printf "%s<<'EOF'\n%s\nEOF\n" methods "$__methods" >> "$GITHUB_OUTPUT"
         printf '%s\n' \
                "on_${{ runner.os }}=on_${{ runner.os }}" \
                "for_${{ matrix.os }}=for_${{ matrix.os }}" \
@@ -66,6 +70,7 @@ jobs:
         archflags: ${{ ! steps.id.outputs.for_macOS && ' -fuse-ld=lld' || '' }}${{ steps.id.outputs.for_Linux && ' -march=x86-64-v3 -mtune=znver3' || '' }}
         ext: ${{ steps.id.outputs.for_Windows && '.exe' || '' }}
       run: |
+        ${{ steps.id.outputs.methods }}
         printf '%s\n' \
                cc=${{ env.cc }} ${{ env.cl && 'cl=' || '' }}${{ env.cl }} ${{ env.ccl && 'ccl=' || '' }}${{ env.ccl }} \
                cflags="${{ env.baseflags }}${{ env.archflags }}" \
