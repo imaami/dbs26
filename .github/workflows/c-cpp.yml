@@ -32,13 +32,13 @@ jobs:
     - name: id
       id: id
       env:
-        build: ${{ matrix.os }}_${{ matrix.on }}
+        build: ${{ build_id }}
         os_os: ${{ matrix.os }}_${{ runner.os }}
         type: ${{ matrix.os == runner.os && 'native' || 'cross' }}
         kind: ${{ matrix.os == runner.os && 'native' || 'cross' }}_${{ matrix.os }}
       run: |
         printf '%s\n' \
-               "os_on=${{ env.os_on }}" \
+               "build=${{ env.build }}" \
                "os_os=${{ env.os_os }}" \
                "${{ env.os_on }}=${{ env.type }}" \
                "${{ env.os_os }}=${{ env.kind }}" \
