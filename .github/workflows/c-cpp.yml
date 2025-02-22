@@ -190,7 +190,7 @@ jobs:
           "${{ steps.cfg.outputs.cc }}" --target=$TARGET_TRIPLE ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
           echo "\"${{ steps.cfg.outputs.cl }}\" /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: \"$build_dir/${{ steps.cfg.outputs.exe_cl }}\" ${{ steps.cfg.outputs.src }}"
           "${{ steps.cfg.outputs.cl }}" /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "$build_dir/${{ steps.cfg.outputs.exe_cl }}" ${{ steps.cfg.outputs.src }}
-        post_Windows_Linux:
+        post_Windows_Linux: |
           echo "\"${{ steps.cfg.outputs.ccl }}\" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: \"$build_dir/${{ steps.cfg.outputs.exe_ccl }}\" -fuse-ld=lld ${{ steps.cfg.outputs.src }}"
           "${{ steps.cfg.outputs.ccl }}" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "$build_dir/${{ steps.cfg.outputs.exe_ccl }}" -fuse-ld=lld ${{ steps.cfg.outputs.src }}
       run: |
