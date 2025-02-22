@@ -35,7 +35,7 @@ jobs:
         on_: ${{ matrix.os != runner.os && 'on_' || '' }}${{ matrix.os != runner.os && runner.os || '' }}
         _on_: ${{ matrix.os != runner.os && '=on_' || '' }}${{ matrix.os != runner.os && runner.os || '' }}
         type: ${{ matrix.os == runner.os && 'native' || 'cross' }}
-        on_for: f="${x}_on_${{ runner.os }}_for_${{ matrix.os }}"; y="${!f}"; [[ -z "${y// /}" ]] || { echo "$f"; continue; }
+        on_for: f="${x}_on_${{ runner.os }}_for_${{ matrix.os }}"; y="${!f}"; [[ -z "${y// /}" ]] || { echo "$y"; continue; }
       run: |
         methods() {
           local x f y
