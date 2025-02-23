@@ -111,7 +111,7 @@ jobs:
                msvc_bin="$msvc_sdk/bin/x64" >> "$GITHUB_OUTPUT"
         ' || '' }}
 
-        build_dir="$GITHUB_WORKSPACE[A/build"
+        build_dir="$GITHUB_WORKSPACE/build"
         artifacts="$build_dir/$exe"
         artifacts="$artifacts${exe_cl:+ $build_dir/$exe_cl}"
         artifacts="$artifacts${exe_ccl:+ $build_dir/$exe_ccl}"
