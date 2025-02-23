@@ -251,6 +251,9 @@ jobs:
         ABS_EXE: ${{ steps.cfg.outputs.abs_exe }}
         ABS_EXE_CCL: ${{ steps.cfg.outputs.abs_exe_ccl }}
         ABS_EXE_CL: ${{ steps.cfg.outputs.abs_exe_cl }}
+        EXE: ${{ steps.cfg.outputs.exe }}
+        EXE_CCL: ${{ steps.cfg.outputs.exe_ccl }}
+        EXE_CL: ${{ steps.cfg.outputs.exe_cl }}
         MSVC_BIN: ${{ steps.cfg.outputs.msvc_bin }}
         MSVC_DIR: ${{ steps.cfg.outputs.msvc_dir }}
         MSVC_SDK: ${{ steps.cfg.outputs.msvc_sdk }}
@@ -265,7 +268,7 @@ jobs:
           env
           "$CC" --target=$TARGET_TRIPLE $CFLAGS -o "$ABS_EXE" $SRC
           pwd
-          "$CL" /TC /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT $SRC /Fe: "$ABS_EXE_CL"
+          "$CL" /TC /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT $SRC /Fe: "../build/$EXE_CL"
           if [[ "${{ steps.id.outputs.on_Linux_for_Windows }}" ]]; then
             pwd
             "$CCL" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "$ABS_EXE_CCL" -fuse-ld=lld --nologo $SRC
