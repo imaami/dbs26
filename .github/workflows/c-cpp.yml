@@ -66,9 +66,9 @@ jobs:
         pre_depends_on_Linux: |
           sudo apt-get install -y clang clang-21 lld lld-21 llvm-21-linker-tools
         pre_depends_on_Linux_for_Windows: |
-          sudo apt-get install -y ca-certificates msitools python3 winbind winehq-staging
+          sudo apt-get install -y --install-recommends ca-certificates msitools python3 winbind winehq-stable
         pre_depends_on_macOS_for_Windows: |
-          brew install msitools wine@staging
+          brew install msitools wine-stable
         depends_cross_Windows: |
           mkdir -p "$MSVC_SDK"
           "$MSVC_DIR/vsdownload.py" --accept-license --dest "$MSVC_SDK"
@@ -142,20 +142,20 @@ jobs:
 
       run: |
         printf '%s\n' \
-               abs_exe="$BUILD_DIR/dbs26-${CC##*/}$EXT" \
-               ${CCL:+abs_exe_ccl="$BUILD_DIR/dbs26-${CCL##*/}$EXT"} \
-               ${CL:+abs_exe_cl="$BUILD_DIR/dbs26-${CL##*/}$EXT"} \
+               abs_exe="$BUILD_DIR/dbs26-$CC$EXT" \
+               abs_exe_ccl="$BUILD_DIR/dbs26-$CCL$EXT" \
+               abs_exe_cl="$BUILD_DIR/dbs26-$CL$EXT" \
                build_dir="$BUILD_DIR" \
                build_job="$BUILD_JOB" \
                build_type="$BUILD_TYPE" \
                cc="$CC" \
-               ${CCL:+ccl="$CCL"} \
+               ccl="$CCL" \
                cflags="$BASE_CFLAGS$ARCH_CFLAGS" \
-               ${CL:+cl="$CL"} \
+               cl="$CL" \
                dest_dir="$DEST_DIR" \
-               exe="dbs26-${CC##*/}$EXT" \
-               ${CCL:+exe_ccl="dbs26-${CCL##*/}$EXT"} \
-               ${CL:+exe_cl="dbs26-${CL##*/}$EXT"} \
+               exe="dbs26-$CC$EXT" \
+               exe_ccl="dbs26-$CCL$EXT" \
+               exe_cl="dbs26-$CL$EXT" \
                ${MSVC:+msvc_bin="$GITHUB_WORKSPACE/$MSVC/sdk/bin/x64"} \
                ${MSVC:+msvc_dir="$GITHUB_WORKSPACE/$MSVC"} \
                ${MSVC:+msvc_sdk="$GITHUB_WORKSPACE/$MSVC/sdk"} \
