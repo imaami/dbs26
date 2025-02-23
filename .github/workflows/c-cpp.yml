@@ -90,10 +90,10 @@ jobs:
           "$CC" -arch x86_64 $CFLAGS -o "$ABS_EXE-x86_64" $SRC
           lipo -create -output "$ABS_EXE" "$ABS_EXE-arm64" "$ABS_EXE-x86_64"
         compile_cross_Windows: |
-          BIN="$MSVC_BIN" . "$MSVC_DIR/msvcenv-native.sh"
           export PATH="$MSVC_BIN:$PATH"
-          "$CC" --target=$TARGET_TRIPLE $CFLAGS -o "$ABS_EXE" $SRC
           "$CL" /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "$ABS_EXE_CL" /nologo $SRC
+          BIN="$MSVC_BIN" . "$MSVC_DIR/msvcenv-native.sh"
+          "$CC" --target=$TARGET_TRIPLE $CFLAGS -o "$ABS_EXE" $SRC
         post_compile_on_Linux_for_Windows: |
           "$CCL" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "$ABS_EXE_CCL" -fuse-ld=lld --nologo $SRC
 
@@ -261,21 +261,7 @@ jobs:
       run: |
         set -x
         mkdir -p "$BUILD_DIR"
-        if [[ "${{ steps.id.outputs.cross_Windows }}" ]]; then
-          BIN="$MSVC_BIN" . "$MSVC_DIR/msvcenv-native.sh"
-          export PATH="$MSVC_BIN:$PATH"
-          pwd
-          env
-          "$CC" --target=$TARGET_TRIPLE $CFLAGS -o "$ABS_EXE" $SRC
-          pwd
-          "$CL" /TC /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT $SRC /Fe: "../build/$EXE_CL"
-          if [[ "${{ steps.id.outputs.on_Linux_for_Windows }}" ]]; then
-            pwd
-            "$CCL" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "$ABS_EXE_CCL" -fuse-ld=lld --nologo $SRC
-          fi
-        else
-          ${{ steps.cfg.outputs.compile }}
-        fi
+        ${{ steps.cfg.outputs.compile }}
 
     - name: Package
       uses: actions/upload-artifact@v4
