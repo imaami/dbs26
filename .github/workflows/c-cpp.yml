@@ -131,7 +131,6 @@ jobs:
         CC: ${{ steps.id.outputs.on_macOS && 'clang' || 'clang-21' }}
         CCL: ${{ steps.id.outputs.on_Linux_for_Windows && 'clang-cl-21' || '' }}
         CL: ${{ steps.id.outputs.for_Windows && 'cl' || '' }}
-        DEST_DIR: ${{ github.workspace }}/dest
         EXT: ${{ steps.id.outputs.for_Windows && '.exe' || '' }}
         MSVC: ${{ steps.id.outputs.cross_Windows && 'msvc' || '' }}
         SRC: args.c dbs26.c
@@ -143,22 +142,22 @@ jobs:
       run: |
         printf '%s\n' \
                abs_exe="$BUILD_DIR/dbs26_$CC$EXT" \
-               abs_exe_ccl="$BUILD_DIR/dbs26_$CCL$EXT" \
-               abs_exe_cl="$BUILD_DIR/dbs26_$CL$EXT" \
+               ${{ env.CCL && 'abs_exe_ccl="$BUILD_DIR/dbs26_$CCL$EXT"' || '' }} \
+               ${{ env.CL && 'abs_exe_cl="$BUILD_DIR/dbs26_$CL$EXT"' || '' }} \
                build_dir="$BUILD_DIR" \
                build_job="$BUILD_JOB" \
-               build_type="$BUILD_TYPE" \
-               cc="$CC" \
-               ccl="$CCL" \
+               build_type="${{ env.BUILD_TYPE }}" \
+               cc="${{ env.CC }}" \
+               ${{ env.CCL && 'ccl="$CCL"' || '' }} \
                cflags="$BASE_CFLAGS$ARCH_CFLAGS" \
-               cl="$CL" \
-               dest_dir="$DEST_DIR" \
+               ${{ env.CL && 'cl="$CL"' || '' }} \
+               dest_dir="${{ github.workspace }}/dest" \
                exe="dbs26_$CC$EXT" \
-               exe_ccl="dbs26_$CCL$EXT" \
-               exe_cl="dbs26_$CL$EXT" \
-               ${MSVC:+msvc_bin="$GITHUB_WORKSPACE/$MSVC/sdk/bin/x64"} \
-               ${MSVC:+msvc_dir="$GITHUB_WORKSPACE/$MSVC"} \
-               ${MSVC:+msvc_sdk="$GITHUB_WORKSPACE/$MSVC/sdk"} \
+               ${{ env.CCL && 'exe_ccl="dbs26_$CCL$EXT"' || '' }} \
+               ${{ env.CL && 'exe_cl="dbs26_$CL$EXT"' || '' }} \
+               ${{ env.MSVC && 'msvc_bin="$GITHUB_WORKSPACE/$MSVC/sdk/bin/x64"' || '' }} \
+               ${{ env.MSVC && 'msvc_dir="$GITHUB_WORKSPACE/$MSVC"' || '' }} \
+               ${{ env.MSVC && 'msvc_sdk="$GITHUB_WORKSPACE/$MSVC/sdk"' || '' }} \
                pkg="dbs26-$BUILD_JOB" \
                src="$SRC" >> "$GITHUB_OUTPUT"
 
