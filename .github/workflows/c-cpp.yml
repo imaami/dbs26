@@ -93,7 +93,7 @@ jobs:
           BIN="$MSVC_BIN" . "$MSVC_DIR/msvcenv-native.sh"
           export PATH="$MSVC_BIN:$PATH"
           "$CC" --target=$TARGET_TRIPLE $CFLAGS -o "$EXE" $SRC
-          "$CL" /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "$EXE_CL" /nologo $SRC
+          "$CL" /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "$BUILD_DIR/dbs26-cl.exe" /nologo $SRC
 
         post_compile_on_Linux_for_Windows: |
           "$CCL" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "$EXE_CCL" -fuse-ld=lld --nologo $SRC
