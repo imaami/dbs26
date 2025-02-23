@@ -45,51 +45,42 @@ jobs:
       id: cfg
       env:
         pre_update_on_Linux_for_Windows: |
-          ${{ steps.id.outputs.on_Linux_for_Windows && '
           sudo mkdir -pm755 /etc/apt/keyrings
           wget -qO- https://dl.winehq.org/wine-builds/winehq.key | \
           sudo gpg --dearmor -o /etc/apt/keyrings/winehq-archive.key -
           wget -qO- https://dl.winehq.org/wine-builds/ubuntu/dists/noble/winehq-noble.sources | \
           sudo tee /etc/apt/sources.list.d/winehq.sources
-          sudo dpkg --add-architecture i386' || '' }}
+          sudo dpkg --add-architecture i386
         update_on_Linux: |
-          ${{ steps.id.outputs.on_Linux && '
           echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble main" | \
           sudo tee /etc/apt/sources.list.d/apt.llvm.org.list
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | \
           sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
           sudo apt-get update
-          sudo apt-get upgrade -y' || '' }}
+          sudo apt-get upgrade -y
         update_on_macOS: |
-          ${{ steps.id.outputs.on_macOS && '
           brew update
           brew upgrade
-          brew install bash' || '' }}
+          brew install bash
 
         pre_depends_on_Linux: |
-          ${{ steps.id.outputs.on_Linux && '
-          sudo apt-get install -y clang clang-21 lld lld-21 llvm-21-linker-tools' || '' }}
+          sudo apt-get install -y clang clang-21 lld lld-21 llvm-21-linker-tools
         pre_depends_on_Linux_for_Windows: |
-          ${{ steps.id.outputs.on_Linux_for_Windows && '
-          sudo apt-get install -y ca-certificates msitools python3 winbind winehq-staging' || '' }}
+          sudo apt-get install -y ca-certificates msitools python3 winbind winehq-staging
         pre_depends_on_macOS_for_Windows: |
-          ${{ steps.id.outputs.on_macOS_for_Windows && '
-          brew install msitools wine@staging' || '' }}
+          brew install msitools wine@staging
         depends_cross_Windows: |
-          ${{ steps.id.outputs.cross_Windows && '
           mkdir -p "$MSVC_SDK"
           "$MSVC_DIR/vsdownload.py" --accept-license --dest "$MSVC_SDK"
-          "$MSVC_DIR/install.sh" "$MSVC_SDK"' || '' }}
+          "$MSVC_DIR/install.sh" "$MSVC_SDK"
         post_depends_on_macOS: |
-          ${{ steps.id.outputs.on_macOS && '
           brew install coreutils gnu-sed
           P="$(brew --prefix)/opt"
-          echo "$P/coreutils/libexec/gnubin:$P/gnu-sed/libexec/gnubin" >> "$GITHUB_PATH"' || '' }}
+          echo "$P/coreutils/libexec/gnubin:$P/gnu-sed/libexec/gnubin" >> "$GITHUB_PATH"
         post_depends_on_macOS_for_Windows: |
-          ${{ steps.id.outputs.on_macOS_for_Windows && '
           brew install llvm lld binutils
           P="$(brew --prefix)/opt"
-          echo "$P/llvm/bin:$P/opt/binutils/bin" >> "$GITHUB_PATH"' || '' }}
+          echo "$P/llvm/bin:$P/opt/binutils/bin" >> "$GITHUB_PATH"
 
         compile_native_Linux: |
           "$CC" $CFLAGS -o "$EXE" $SRC
@@ -107,34 +98,30 @@ jobs:
           "$CCL" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "$EXE_CCL" -fuse-ld=lld --nologo $SRC
 
         pre_validate_on_macOS_for_Windows: |
-          ${{ steps.id.outputs.on_macOS_for_Windows && 'try() {
+          try() {
             WINEDEBUG=-all wine "$@" -o -     | sha1sum       ; rm -f "$OUT"
             WINEDEBUG=-all wine "$@" -o "$OUT"; sha1sum "$OUT"; rm -f "$OUT"
-          }' || '' }}
+          }
         pre_validate_cross_Windows: |
-          ${{ steps.id.outputs.cross_Windows && 'try() {
+          try() {
             WINEDEBUG=-all wine64 "$@" -o -     | sha1sum       ; rm -f "$OUT"
             WINEDEBUG=-all wine64 "$@" -o "$OUT"; sha1sum "$OUT"; rm -f "$OUT"
-          }' || '' }}
+          }
         pre_validate_native: |
-          ${{ steps.id.outputs.native && 'try() {
+          try() {
             "$@" -o -     | sha1sum       ; rm -f "$OUT"
             "$@" -o "$OUT"; sha1sum "$OUT"; rm -f "$OUT"
-          }' || '' }}
+          }
         validate_native_Linux: |
-          ${{ steps.id.outputs.native_Linux && '
-          try "./$EXE"' || '' }}
-        validate_native_macOS: |
-          ${{ steps.id.outputs.native_macOS && '
-          try arch -arm64 "./$EXE"
-          try arch -x86_64 "./$EXE"' || '' }}
-        validate_cross_Windows: |
-          ${{ steps.id.outputs.cross_Windows && '
           try "./$EXE"
-          try "./$EXE_CL"' || '' }}
+        validate_native_macOS: |
+          try arch -arm64 "./$EXE"
+          try arch -x86_64 "./$EXE"
+        validate_cross_Windows: |
+          try "./$EXE"
+          try "./$EXE_CL"
         post_validate_on_Linux_for_Windows: |
-          ${{ steps.id.outputs.on_Linux_for_Windows && '
-          try "./$EXE_CCL"' || '' }}
+          try "./$EXE_CCL"
 
         ARCH_CFLAGS: ${{ ! steps.id.outputs.for_macOS && ' -fuse-ld=lld' || '' }}${{ steps.id.outputs.for_Linux && ' -march=x86-64-v3 -mtune=znver3' || '' }}
         BASE_CFLAGS: -std=gnu2${{ steps.id.outputs.on_macOS && 'x' || '3' }} -flto=full -O3 -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1
