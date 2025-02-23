@@ -90,14 +90,36 @@ jobs:
         archflags: ${{ ! steps.id.outputs.for_macOS && ' -fuse-ld=lld' || '' }}${{ steps.id.outputs.for_Linux && ' -march=x86-64-v3 -mtune=znver3' || '' }}
         ext: ${{ steps.id.outputs.for_Windows && '.exe' || '' }}
       run: |
+        exe="dbs26-${{ env.cc }}${{ env.ext }}"
+        ${{ env.cl && 'exe_cl=dbs26-' || '' }}${{ env.cl }}${{ env.cl && env.ext || '' }}
+        ${{ env.ccl && 'exe_ccl=dbs26-' || '' }}${{ env.ccl }}${{ env.ccl && env.ext || '' }}
         printf '%s\n' \
                cc=${{ env.cc }} ${{ env.cl && 'cl=' || '' }}${{ env.cl }} ${{ env.ccl && 'ccl=' || '' }}${{ env.ccl }} \
                cflags="${{ env.baseflags }}${{ env.archflags }}" \
-               exe=dbs26-${{ env.cc }}${{ env.ext }} \
-               ${{ env.cl && 'exe_cl=dbs26-' || '' }}${{ env.cl }}${{ env.cl && env.ext || '' }} \
-               ${{ env.ccl && 'exe_ccl=dbs26-' || '' }}${{ env.ccl }}${{ env.ccl && env.ext || '' }} \
+               exe="$exe" \
+               ${{ env.cl && 'exe_cl=$exe_cl' || '' }} \
+               ${{ env.ccl && 'exe_ccl=$exe_ccl' || '' }} \
                pkg=dbs26-${{ steps.id.outputs.build }} \
                src="args.c dbs26.c" >> "$GITHUB_OUTPUT"
+
+        ${{ steps.id.outputs.cross_Windows && '
+        msvc_dir="$GITHUB_WORKSPACE/msvc-wine"
+        msvc_sdk="$GITHUB_WORKSPACE/winsdk"
+        printf "%s\n" \
+               msvc_dir="$msvc_dir" \
+               msvc_sdk="$msvc_sdk" \
+               msvc_bin="$msvc_sdk/bin/x64" >> "$GITHUB_OUTPUT"
+        ' || '' }}
+
+        build_dir="$GITHUB_WORKSPACE[A/build"
+        artifacts="$build_dir/$exe"
+        artifacts="$artifacts${exe_cl:+ $build_dir/$exe_cl}"
+        artifacts="$artifacts${exe_ccl:+ $build_dir/$exe_ccl}"
+        printf "%s\n" \
+               build_dir="$build_dir" \
+               artifacts="$artifacts" >> "$GITHUB_OUTPUT"
+
+
     - name: Update system packages
       env:
         pre_update_on_Linux_for_Windows: |
@@ -122,27 +144,11 @@ jobs:
           brew install bash' || '' }}
       run: |
         ${{ steps.id.outputs.update }}
-    - name: Set env variables
-      id: env
-      run: |
-        ${{ steps.id.outputs.cross_Windows && '
-        msvc_dir="$GITHUB_WORKSPACE/msvc-wine"
-        msvc_sdk="$GITHUB_WORKSPACE/winsdk"
-        msvc_bin="$msvc_sdk/bin/x64"
-        printf "%s=%s\n" \
-               msvc_dir "$msvc_dir" \
-               msvc_sdk "$msvc_sdk" \
-               msvc_bin "$msvc_bin" >> "$GITHUB_OUTPUT"
-        ' || '' }}
-        [[ "$build_dir" ]] || build_dir="$GITHUB_WORKSPACE/build"
-        printf "%s=%s\n" \
-               build_dir "$build_dir" \
-               artifacts "$build_dir/${{ steps.cfg.outputs.exe }}${{ steps.cfg.outputs.exe_cl && ' $build_dir/' || '' }}${{ steps.cfg.outputs.exe_cl }}${{ steps.cfg.outputs.exe_ccl && ' $build_dir/' || '' }}${{ steps.cfg.outputs.exe_ccl }}" >> "$GITHUB_OUTPUT"
 
     - name: Install dependencies
       env:
-        msvc_dir: ${{ steps.env.outputs.msvc_dir }}
-        msvc_sdk: ${{ steps.env.outputs.msvc_sdk }}
+        msvc_dir: ${{ steps.cfg.outputs.msvc_dir }}
+        msvc_sdk: ${{ steps.cfg.outputs.msvc_sdk }}
         pre_depends_on_Linux: |
           ${{ steps.id.outputs.on_Linux && 'sudo apt-get install -y clang clang-21 lld lld-21 llvm-21-linker-tools' || '' }}
         pre_depends_on_Linux_for_Windows: |
@@ -192,7 +198,7 @@ jobs:
     - name: Compile
       working-directory: ${{ github.workspace }}/src
       env:
-        build_dir: ${{ steps.env.outputs.build_dir }}
+        build_dir: ${{ steps.cfg.outputs.build_dir }}
         compile_native_Linux: |
           "${{ steps.cfg.outputs.cc }}" ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
           strip --strip-all "$build_dir/${{ steps.cfg.outputs.exe }}"
@@ -201,8 +207,8 @@ jobs:
           "${{ steps.cfg.outputs.cc }}" -arch x86_64 ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}-x86_64" ${{ steps.cfg.outputs.src }}
           lipo -create -output "$build_dir/${{ steps.cfg.outputs.exe }}" "$build_dir/${{ steps.cfg.outputs.exe }}-arm64" "$build_dir/${{ steps.cfg.outputs.exe }}-x86_64"
         compile_cross_Windows: |
-          BIN="${{ steps.env.outputs.msvc_bin }}" . "${{ steps.env.outputs.msvc_dir }}/msvcenv-native.sh"
-          export PATH="${{ steps.env.outputs.msvc_bin }}:$PATH"
+          BIN="${{ steps.cfg.outputs.msvc_bin }}" . "${{ steps.cfg.outputs.msvc_dir }}/msvcenv-native.sh"
+          export PATH="${{ steps.cfg.outputs.msvc_bin }}:$PATH"
           "${{ steps.cfg.outputs.cc }}" --target=$TARGET_TRIPLE ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
           "${{ steps.cfg.outputs.cl }}" /nologo /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "$build_dir/${{ steps.cfg.outputs.exe_cl }}" ${{ steps.cfg.outputs.src }}
         post_compile_on_Linux_for_Windows: |
@@ -216,12 +222,12 @@ jobs:
       with:
         name: ${{ steps.cfg.outputs.pkg }}
         path: |
-          ${{ steps.env.outputs.artifacts }}
+          ${{ steps.cfg.outputs.artifacts }}
           LICENSE
           README.md
 
     - name: Validate
-      working-directory: ${{ steps.env.outputs.build_dir }}
+      working-directory: ${{ steps.cfg.outputs.build_dir }}
       env:
         out: ${{ runner.temp }}/test.bin
         pre_validate_on_macOS_for_Windows: |
