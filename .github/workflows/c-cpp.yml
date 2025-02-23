@@ -27,168 +27,106 @@ jobs:
           - os: macOS
             on: ubuntu-24.04
     steps:
-    - name: Set build identity
+    - name: id
       id: id
       env:
-        on_: ${{ matrix.os != runner.os && 'on_' || '' }}${{ matrix.os != runner.os && runner.os || '' }}
+        os_: ${{ matrix.os }}_
         _for_: ${{ matrix.os != runner.os && '_for_' || '' }}${{ matrix.os != runner.os && matrix.os || '' }}
+        on_: ${{ matrix.os != runner.os && 'on_' || '' }}${{ matrix.os != runner.os && runner.os || '' }}
         _on_: ${{ matrix.os != runner.os && '=on_' || '' }}${{ matrix.os != runner.os && runner.os || '' }}
         type: ${{ matrix.os == runner.os && 'native' || 'cross' }}
+        on_for: f="${x}_on_${{ runner.os }}_for_${{ matrix.os }}"; y="${!f}"; [[ -z "${y// /}" ]] || { echo "$y"; continue; }
       run: |
-        printf '%s\n' ${{ env.on_ }}${{ env._for_ }}${{ env._on_ }}${{ env._for_ }} \
-               on_${{ runner.os }}=on_${{ runner.os }} \
-               for_${{ matrix.os }}=for_${{ matrix.os }} \
-               ${{ env.type }}_${{ matrix.os }}=${{ env.type }}_${{ matrix.os }} \
-               ${{ env.type }}=${{ env.type }} >> "$GITHUB_OUTPUT"
+        __step() {
+          local x f y
+          for x in pre_$1 $1 post_$1; do
+            f="${x}_on_${{ runner.os }}"; y="${!f}"; [[ -z "${y// /}" ]] || echo "$y"
+            ${{ matrix.os != runner.os && env.on_for || '' }}
+            f="${x}_${{ env.type }}_${{ matrix.os }}"; y="${!f}"; [[ -z "${y// /}" ]] || { echo "$y"; continue; }
+            f="${x}_${{ env.type }}"; y="${!f}"; [[ -z "${y// /}" ]] || { echo "$y"; continue; }
+            y="${!x}"; [[ -z "${y// /}" ]] || echo "$y"
+          done
+        }
+        __fn="$(declare -f __step)"
+        if (( BASH_VERSINFO == 3 )); then
+          __fn=$(printf 'eval %q' "$__fn")
+        fi
+        for s in update depends compile validate; do
+          fn="${__fn/__step/do_$s}"
+          {
+            echo "$s<<EOF"
+            echo "${fn//\$1/$s}"
+            echo "eval \"\$(do_$s)\""
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+        done
 
-    - name: Configure build
+        printf '%s\n' \
+               "on_${{ runner.os }}=on_${{ runner.os }}" \
+               "for_${{ matrix.os }}=for_${{ matrix.os }}" \
+               ${{ env.on_ }}${{ env._for_ }}${{ env._on_ }}${{ env._for_ }} \
+               "build=${{ matrix.os != runner.os && env.os_ || '' }}${{ matrix.on }}" \
+               "${{ matrix.os }}_${{ runner.os }}=${{ env.type }}_${{ matrix.os }}" \
+               "${{ env.type }}_${{ matrix.os }}=${{ env.type }}_${{ matrix.os }}" \
+               "${{ env.type }}=${{ env.type }}" >> "$GITHUB_OUTPUT"
+    - name: Set build params
       id: cfg
       env:
+        cc: ${{ steps.id.outputs.on_macOS && 'clang' || 'clang-21' }}
+        cl: ${{ steps.id.outputs.for_Windows && 'cl' || '' }}
+        ccl: ${{ steps.id.outputs.on_Linux_for_Windows && 'clang-cl-21' || '' }}
+        baseflags: -std=gnu2${{ steps.id.outputs.on_macOS && 'x' || '3' }} -flto=full -O3 -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1
+        archflags: ${{ ! steps.id.outputs.for_macOS && ' -fuse-ld=lld' || '' }}${{ steps.id.outputs.for_Linux && ' -march=x86-64-v3 -mtune=znver3' || '' }}
+        ext: ${{ steps.id.outputs.for_Windows && '.exe' || '' }}
+      run: |
+        printf '%s\n' \
+               cc=${{ env.cc }} ${{ env.cl && 'cl=' || '' }}${{ env.cl }} ${{ env.ccl && 'ccl=' || '' }}${{ env.ccl }} \
+               cflags="${{ env.baseflags }}${{ env.archflags }}" \
+               exe=dbs26-${{ env.cc }}${{ env.ext }} \
+               ${{ env.cl && 'exe_cl=dbs26-' || '' }}${{ env.cl }}${{ env.cl && env.ext || '' }} \
+               ${{ env.ccl && 'exe_ccl=dbs26-' || '' }}${{ env.ccl }}${{ env.ccl && env.ext || '' }} \
+               pkg=dbs26-${{ steps.id.outputs.build }} \
+               src="args.c dbs26.c" >> "$GITHUB_OUTPUT"
+    - name: Update system packages
+      env:
         pre_update_on_Linux_for_Windows: |
-          ${{ steps.id.outputs.on_Linux_for_Windows && '
-          sudo mkdir -pm755 /etc/apt/keyrings
+          ${{ steps.id.outputs.on_Linux_for_Windows && 'sudo mkdir -pm755 /etc/apt/keyrings
           wget -qO- https://dl.winehq.org/wine-builds/winehq.key | \
           sudo gpg --dearmor -o /etc/apt/keyrings/winehq-archive.key -
           wget -qO- https://dl.winehq.org/wine-builds/ubuntu/dists/noble/winehq-noble.sources | \
           sudo tee /etc/apt/sources.list.d/winehq.sources
-          sudo dpkg --add-architecture i386
-          ' || '' }}
+          sudo dpkg --add-architecture i386' || '' }}
         update_on_Linux: |
+          ${{ steps.id.outputs.on_Linux && '
           echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble main" | \
           sudo tee /etc/apt/sources.list.d/apt.llvm.org.list
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | \
           sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
           sudo apt-get update
-          sudo apt-get upgrade -y
+          sudo apt-get upgrade -y' || '' }}
         update_on_macOS: |
+          ${{ steps.id.outputs.on_macOS && 'set +e
           brew update
           brew upgrade
-          brew install bash
-
-        pre_depends_on_Linux: |
-          sudo apt-get install -y clang clang-21 lld lld-21 llvm-21-linker-tools
-        pre_depends_on_Linux_for_Windows: |
-          sudo apt-get install -y --install-recommends ca-certificates msitools python3 winbind winehq-stable
-        pre_depends_on_macOS_for_Windows: |
-          brew install msitools wine-stable
-        depends_cross_Windows: |
-          mkdir -p "$MSVC_SDK"
-          "$MSVC_DIR/vsdownload.py" --accept-license --dest "$MSVC_SDK"
-          "$MSVC_DIR/install.sh" "$MSVC_SDK"
-        post_depends_on_macOS: |
-          brew install coreutils gnu-sed
-          P="$(brew --prefix)/opt"
-          echo "$P/coreutils/libexec/gnubin:$P/gnu-sed/libexec/gnubin" >> "$GITHUB_PATH"
-        post_depends_on_macOS_for_Windows: |
-          brew install llvm lld binutils
-          P="$(brew --prefix)/opt"
-          echo "$P/llvm/bin:$P/opt/binutils/bin" >> "$GITHUB_PATH"
-
-        compile_native_Linux: |
-          "$CC" $CFLAGS -o "$ABS_EXE" $SRC
-          strip --strip-all "$ABS_EXE"
-        compile_native_macOS: |
-          "$CC" -arch arm64 $CFLAGS -o "$ABS_EXE-arm64" $SRC
-          "$CC" -arch x86_64 $CFLAGS -o "$ABS_EXE-x86_64" $SRC
-          lipo -create -output "$ABS_EXE" "$ABS_EXE-arm64" "$ABS_EXE-x86_64"
-        compile_cross_Windows: |
-          ${{ steps.id.outputs.cross_Windows && '
-          BIN="$MSVC_BIN" . "$MSVC_DIR/msvcenv-native.sh"
-          export PATH="$MSVC_BIN:$PATH"
-          "$CC" --target=$TARGET_TRIPLE $CFLAGS -o "$ABS_EXE" $SRC
-          cl /TC /std:c17 /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "$ABS_EXE_CL" $SRC' || '' }}
-        post_compile_on_Linux_for_Windows: |
-          ${{ steps.id.outputs.on_Linux_for_Windows && '
-          "$CCL" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "$ABS_EXE_CCL" -fuse-ld=lld --nologo $SRC' || '' }}
-
-        pre_validate_on_macOS_for_Windows: |
-          try() {
-            WINEDEBUG=-all wine "$@" -o -     | sha1sum       ; rm -f "$OUT"
-            WINEDEBUG=-all wine "$@" -o "$OUT"; sha1sum "$OUT"; rm -f "$OUT"
-          }
-        pre_validate_cross_Windows: |
-          try() {
-            WINEDEBUG=-all wine64 "$@" -o -     | sha1sum       ; rm -f "$OUT"
-            WINEDEBUG=-all wine64 "$@" -o "$OUT"; sha1sum "$OUT"; rm -f "$OUT"
-          }
-        pre_validate_native: |
-          try() {
-            "$@" -o -     | sha1sum       ; rm -f "$OUT"
-            "$@" -o "$OUT"; sha1sum "$OUT"; rm -f "$OUT"
-          }
-        validate_native_Linux: |
-          try "./$EXE"
-        validate_native_macOS: |
-          try arch -arm64 "./$EXE"
-          try arch -x86_64 "./$EXE"
-        validate_cross_Windows: |
-          try "./$EXE"
-          try "./$EXE_CL"
-        post_validate_on_Linux_for_Windows: |
-          try "./$EXE_CCL"
-
-        ARCH_CFLAGS: ${{ ! steps.id.outputs.for_macOS && ' -fuse-ld=lld' || '' }}${{ steps.id.outputs.for_Linux && ' -march=x86-64-v3 -mtune=znver3' || '' }}
-        BASE_CFLAGS: -std=gnu2${{ steps.id.outputs.on_macOS && 'x' || '3' }} -flto=full -O3 -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1
-        BUILD_DIR: ${{ github.workspace }}/build
-        BUILD_JOB: ${{ steps.id.outputs.cross && matrix.os || '' }}${{ steps.id.outputs.cross && '_' || '' }}${{ matrix.on }}
-        BUILD_TYPE: ${{ steps.id.outputs.cross }}${{ steps.id.outputs.native }}
-        CC: ${{ steps.id.outputs.on_macOS && 'clang' || 'clang-21' }}
-        CCL: ${{ steps.id.outputs.on_Linux_for_Windows && 'clang-cl-21' || '' }}
-        CL: ${{ steps.id.outputs.for_Windows && 'cl' || '' }}
-        EXT: ${{ steps.id.outputs.for_Windows && '.exe' || '' }}
-        MSVC: ${{ steps.id.outputs.cross_Windows && 'msvc' || '' }}
-        SRC: args.c dbs26.c
-
-        on_for: |
-          f="${x}_on_${{ runner.os }}_for_${{ matrix.os }}"; y="${!f}"
-          [[ -z "${y// /}" ]] || { a="$a"$'\n'"$y"; continue; }
-
+          brew install bash' || '' }}
       run: |
-        echo "abs_exe=$BUILD_DIR/dbs26-$CC${{ env.EXT }}" >> "$GITHUB_OUTPUT"
-        ${{ env.CCL && 'echo "abs_exe_ccl=$BUILD_DIR/dbs26-$CCL$EXT" >> "$GITHUB_OUTPUT"' || '' }}
-        ${{ env.CL && 'echo "abs_exe_cl=$BUILD_DIR/dbs26-$CL$EXT" >> "$GITHUB_OUTPUT"' || '' }}
-        ${{ env.CCL && 'echo "ccl=$CCL" >> "$GITHUB_OUTPUT"' || '' }}
-        ${{ env.CL && 'echo "cl=$CL" >> "$GITHUB_OUTPUT"' || '' }}
-        echo "exe=dbs26-$CC${{ env.EXT }}" >> "$GITHUB_OUTPUT"
-        ${{ env.CCL && 'echo "exe_ccl=dbs26-$CCL$EXT" >> "$GITHUB_OUTPUT"' || '' }}
-        ${{ env.CL && 'echo "exe_cl=dbs26-$CL$EXT" >> "$GITHUB_OUTPUT"' || '' }}
-        echo src="${{ env.SRC }}" >> "$GITHUB_OUTPUT"
-
-        printf '%s\n' \
-               build_dir="$BUILD_DIR" \
-               build_job="${{ env.BUILD_JOB }}" \
-               build_type="${{ env.BUILD_TYPE }}" \
-               cc="${{ env.CC }}" \
-               cflags="${{ env.BASE_CFLAGS }}${{ env.ARCH_CFLAGS }}" \
-               dest_dir="${{ github.workspace }}/dest" \
-               ${{ env.MSVC && 'msvc_bin="$GITHUB_WORKSPACE/$MSVC/sdk/bin/x64"' || '' }} \
-               ${{ env.MSVC && 'msvc_dir="$GITHUB_WORKSPACE/$MSVC"' || '' }} \
-               ${{ env.MSVC && 'msvc_sdk="$GITHUB_WORKSPACE/$MSVC/sdk"' || '' }} \
-               pkg="dbs26-${{ env.BUILD_JOB }}" >> "$GITHUB_OUTPUT"
-
-        __step() {
-          local a b x f y
-          for x in pre_$1 $1 post_$1; do
-            f="${x}_on_${{ runner.os }}"; y="${!f}"
-            [[ -z "${y// /}" ]] || a="$a"$'\n'"$y"
-            ${{ steps.id.outputs.cross && env.on_for || '' }}
-            f="${x}_${{ env.BUILD_TYPE }}_${{ matrix.os }}"; y="${!f}"
-            [[ -z "${y// /}" ]] || { a="$a"$'\n'"$y"; continue; }
-            f="${x}_${{ env.BUILD_TYPE }}"; y="${!f}"
-            [[ -z "${y// /}" ]] || { a="$a"$'\n'"$y"; continue; }
-            y="${!x}"; [[ -z "${y// /}" ]] || a="$a"$'\n'"$y"
-          done
-          printf -vRESULT -- 'eval %q' "$a"$'\n'
-        }
-        for s in update depends compile validate; do
-          RESULT=''
-          __step "$s"
-          printf '%s<<EOF\n%s\nEOF\n' "$s" "$RESULT" >> "$GITHUB_OUTPUT"
-        done
-
-    - name: Update system packages
+        ${{ steps.id.outputs.update }}
+    - name: Set env variables
+      id: env
       run: |
-        ${{ steps.cfg.outputs.update }}
+        ${{ steps.id.outputs.cross_Windows && '
+        [[ "$msvc_path" ]] || msvc_path="msvc"
+        [[ "$msvc_dir"  ]] || msvc_dir="$GITHUB_WORKSPACE/$msvc_path"
+        [[ "$msvc_sdk"  ]] || msvc_sdk="$msvc_dir/sdk"
+        printf "%s=%s\n" \
+               msvc_dir "$msvc_dir" \
+               msvc_sdk "$msvc_sdk" \
+               msvc_bin "$msvc_sdk/bin/x64" >> "$GITHUB_OUTPUT"
+        ' || '' }}
+        [[ "$build_dir" ]] || build_dir="$GITHUB_WORKSPACE/build"
+        printf "%s=%s\n" \
+               build_dir "$build_dir" \
+               artifacts "$build_dir/${{ steps.cfg.outputs.exe }}${{ steps.cfg.outputs.exe_cl && ' $build_dir/' || '' }}${{ steps.cfg.outputs.exe_cl }}${{ steps.cfg.outputs.exe_ccl && ' $build_dir/' || '' }}${{ steps.cfg.outputs.exe_ccl }}" >> "$GITHUB_OUTPUT"
 
     - uses: actions/checkout@v4
 
@@ -197,16 +135,31 @@ jobs:
       uses: actions/checkout@v4
       with:
         repository: mstorsjo/msvc-wine
-        path: ${{ steps.cfg.outputs.msvc_dir }}
+        path: ${{ steps.env.outputs.msvc_dir }}
         ref: master
 
     - name: Install dependencies
       env:
-        MSVC_DIR: ${{ steps.cfg.outputs.msvc_dir }}
-        MSVC_SDK: ${{ steps.cfg.outputs.msvc_sdk }}
+        msvc_dir: ${{ steps.env.outputs.msvc_dir }}
+        msvc_sdk: ${{ steps.env.outputs.msvc_sdk }}
+        pre_depends_on_Linux: |
+          ${{ steps.id.outputs.on_Linux && 'sudo apt-get install -y clang clang-21 lld lld-21 llvm-21-linker-tools' || '' }}
+        pre_depends_on_Linux_for_Windows: |
+          ${{ steps.id.outputs.on_Linux_for_Windows && 'sudo apt-get install -y ca-certificates msitools python3 winbind winehq-staging' || '' }}
+        pre_depends_on_macOS_for_Windows: |
+          ${{ steps.id.outputs.on_macOS_for_Windows && 'brew install msitools wine@staging' || '' }}
+        depends_cross_Windows: |
+          ${{ steps.id.outputs.cross_Windows && 'mkdir -p "$msvc_sdk"' || '' }}
+          ${{ steps.id.outputs.cross_Windows && '"$msvc_dir/vsdownload.py" --accept-license --dest "$msvc_sdk"' || '' }}
+          ${{ steps.id.outputs.cross_Windows && '"$msvc_dir/install.sh" "$msvc_sdk"' || '' }}
+        post_depends_on_macOS: |
+          ${{ steps.id.outputs.on_macOS && 'brew install coreutils gnu-sed' || '' }}
+          ${{ steps.id.outputs.on_macOS && 'echo "$(brew --prefix)/opt/coreutils/libexec/gnubin:$(brew --prefix)/opt/gnu-sed/libexec/gnubin" >> "$GITHUB_PATH"' || '' }}
+        post_depends_on_macOS_for_Windows: |
+          ${{ steps.id.outputs.on_macOS_for_Windows && 'brew install llvm lld binutils' || '' }}
+          ${{ steps.id.outputs.on_macOS_for_Windows && 'echo "$(brew --prefix)/opt/llvm/bin:$(brew --prefix)/opt/binutils/bin" >> "$GITHUB_PATH"' || '' }}
       run: |
-        ${{ steps.cfg.outputs.depends }}
-
+        ${{ steps.id.outputs.depends }}
     - name: Introspect compilers
       run: |
         set +e
@@ -238,41 +191,65 @@ jobs:
     - name: Compile
       working-directory: ${{ github.workspace }}/src
       env:
-        BUILD_DIR: ${{ steps.cfg.outputs.build_dir }}
-        CC: ${{ steps.cfg.outputs.cc }}
-        CCL: ${{ steps.cfg.outputs.ccl }}
-        CL: ${{ steps.cfg.outputs.cl }}
-        CFLAGS: ${{ steps.cfg.outputs.cflags }}
-        ABS_EXE: ${{ steps.cfg.outputs.abs_exe }}
-        ABS_EXE_CCL: ${{ steps.cfg.outputs.abs_exe_ccl }}
-        ABS_EXE_CL: ${{ steps.cfg.outputs.abs_exe_cl }}
-        EXE: ${{ steps.cfg.outputs.exe }}
-        EXE_CCL: ${{ steps.cfg.outputs.exe_ccl }}
-        EXE_CL: ${{ steps.cfg.outputs.exe_cl }}
-        MSVC_BIN: ${{ steps.cfg.outputs.msvc_bin }}
-        MSVC_DIR: ${{ steps.cfg.outputs.msvc_dir }}
-        MSVC_SDK: ${{ steps.cfg.outputs.msvc_sdk }}
-        SRC: ${{ steps.cfg.outputs.src }}
+        build_dir: ${{ steps.env.outputs.build_dir }}
+        compile_native_Linux: |
+          "${{ steps.cfg.outputs.cc }}" ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
+          strip --strip-all "$build_dir/${{ steps.cfg.outputs.exe }}"
+        compile_native_macOS: |
+          "${{ steps.cfg.outputs.cc }}" -arch arm64 ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}-arm64" ${{ steps.cfg.outputs.src }}
+          "${{ steps.cfg.outputs.cc }}" -arch x86_64 ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}-x86_64" ${{ steps.cfg.outputs.src }}
+          lipo -create -output "$build_dir/${{ steps.cfg.outputs.exe }}" "$build_dir/${{ steps.cfg.outputs.exe }}-arm64" "$build_dir/${{ steps.cfg.outputs.exe }}-x86_64"
+        compile_cross_Windows: |
+          BIN="${{ steps.env.outputs.msvc_bin }}" . "${{ steps.env.outputs.msvc_dir }}/msvcenv-native.sh"
+          export PATH="${{ steps.env.outputs.msvc_bin }}:$PATH"
+          echo "\"${{ steps.cfg.outputs.cc }}\" --target=$TARGET_TRIPLE ${{ steps.cfg.outputs.cflags }} -o \"$build_dir/${{ steps.cfg.outputs.exe }}\" ${{ steps.cfg.outputs.src }}"
+          "${{ steps.cfg.outputs.cc }}" --target=$TARGET_TRIPLE ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
+          echo "\"${{ steps.cfg.outputs.cl }}\" /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: \"$build_dir/${{ steps.cfg.outputs.exe_cl }}\" ${{ steps.cfg.outputs.src }}"
+          "${{ steps.cfg.outputs.cl }}" /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /nologo /Fe: "$build_dir/${{ steps.cfg.outputs.exe_cl }}" ${{ steps.cfg.outputs.src }}
+        post_compile_on_Linux_for_Windows: |
+          echo "\"${{ steps.cfg.outputs.ccl }}\" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: \"$build_dir/${{ steps.cfg.outputs.exe_ccl }}\" -fuse-ld=lld ${{ steps.cfg.outputs.src }}"
+          "${{ steps.cfg.outputs.ccl }}" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "$build_dir/${{ steps.cfg.outputs.exe_ccl }}" -fuse-ld=lld --nologo ${{ steps.cfg.outputs.src }}
       run: |
-        mkdir -p "$BUILD_DIR"
-        ${{ steps.cfg.outputs.compile }}
+        mkdir -p "$build_dir"
+        ${{ steps.id.outputs.compile }}
 
     - name: Package
       uses: actions/upload-artifact@v4
       with:
         name: ${{ steps.cfg.outputs.pkg }}
         path: |
-          ${{ steps.cfg.outputs.abs_exe }}
-          ${{ steps.cfg.outputs.abs_exe_ccl }}
-          ${{ steps.cfg.outputs.abs_exe_cl }}
+          ${{ steps.env.outputs.artifacts }}
+          LICENSE
+          README.md
 
     - name: Validate
-      working-directory: ${{ steps.cfg.outputs.build_dir }}
+      working-directory: ${{ steps.env.outputs.build_dir }}
       env:
-        EXE: ${{ steps.cfg.outputs.exe }}
-        EXE_CCL: ${{ steps.cfg.outputs.exe_ccl }}
-        EXE_CL: ${{ steps.cfg.outputs.exe_cl }}
-        OUT: ${{ runner.temp }}/test.bin
+        out: ${{ runner.temp }}/test.bin
+        pre_validate_on_macOS_for_Windows: |
+          ${{ steps.id.outputs.on_macOS_for_Windows && 'try() {
+            WINEDEBUG=-all wine "$@" -o -     | sha1sum       ; rm -f "$out"
+            WINEDEBUG=-all wine "$@" -o "$out"; sha1sum "$out"; rm -f "$out"
+          }' || '' }}
+        pre_validate_cross_Windows: |
+          ${{ steps.id.outputs.cross_Windows && 'try() {
+            WINEDEBUG=-all wine64 "$@" -o -     | sha1sum       ; rm -f "$out"
+            WINEDEBUG=-all wine64 "$@" -o "$out"; sha1sum "$out"; rm -f "$out"
+          }' || '' }}
+        pre_validate_native: |
+          ${{ steps.id.outputs.native && 'try() {
+            "$@" -o -     | sha1sum       ; rm -f "$out"
+            "$@" -o "$out"; sha1sum "$out"; rm -f "$out"
+          }' || '' }}
+        validate_native_Linux: |
+          ${{ steps.id.outputs.native_Linux && 'try ./' || '' }}${{ steps.id.outputs.native_Linux && steps.cfg.outputs.exe || '' }}
+        validate_native_macOS: |
+          ${{ steps.id.outputs.native_macOS && 'try arch -arm64 ./' || '' }}${{ steps.id.outputs.native_macOS && steps.cfg.outputs.exe || '' }}
+          ${{ steps.id.outputs.native_macOS && 'try arch -x86_64 ./' || '' }}${{ steps.id.outputs.native_macOS && steps.cfg.outputs.exe || '' }}
+        validate_cross_Windows: |
+          ${{ steps.id.outputs.cross_Windows && 'try ./' || '' }}${{ steps.id.outputs.cross_Windows && steps.cfg.outputs.exe || '' }}
+          ${{ steps.id.outputs.cross_Windows && 'try ./' || '' }}${{ steps.id.outputs.cross_Windows && steps.cfg.outputs.exe_cl || '' }}
+        post_validate_on_Linux_for_Windows: |
+          ${{ steps.id.outputs.on_Linux_for_Windows && 'try ./' || '' }}${{ steps.id.outputs.on_Linux_for_Windows && steps.cfg.outputs.exe_ccl || '' }}
       run: |
-        set -x
-        ${{ steps.cfg.outputs.validate }}
+        ${{ steps.id.outputs.validate }}
