@@ -130,7 +130,7 @@ jobs:
         BUILD_TYPE: ${{ steps.id.outputs.cross }}${{ steps.id.outputs.native }}
         CC: ${{ steps.id.outputs.on_macOS && 'clang' || 'clang-21' }}
         CCL: ${{ steps.id.outputs.on_Linux_for_Windows && 'clang-cl-21' || '' }}
-        CL: ${{ steps.id.outputs.for_Windows && 'cl' || '' }}
+        CL: ${{ steps.id.outputs.for_Windows && 'CL.EXE' || '' }}
         DEST_DIR: ${{ github.workspace }}/dest
         EXT: ${{ steps.id.outputs.for_Windows && '.exe' || '' }}
         MSVC: ${{ steps.id.outputs.cross_Windows && 'msvc' || '' }}
