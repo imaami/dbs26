@@ -253,7 +253,7 @@ jobs:
       run: |
         set -x
         mkdir -p "$BUILD_DIR"
-        eval "$compile"
+        ${{ steps.cfg.outputs.compile }}
 
     - name: Package
       uses: actions/upload-artifact@v4
