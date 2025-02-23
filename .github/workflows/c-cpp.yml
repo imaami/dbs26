@@ -27,8 +27,6 @@ jobs:
           - os: macOS
             on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v4
-
     - name: id
       id: id
       env:
@@ -71,6 +69,17 @@ jobs:
                "${{ matrix.os }}_${{ runner.os }}=${{ env.type }}_${{ matrix.os }}" \
                "${{ env.type }}_${{ matrix.os }}=${{ env.type }}_${{ matrix.os }}" \
                "${{ env.type }}=${{ env.type }}" >> "$GITHUB_OUTPUT"
+
+    - uses: actions/checkout@v4
+
+    - name: Clone msvc-wine
+      if: ${{ steps.id.outputs.cross_Windows }}
+      uses: actions/checkout@v4
+      with:
+        repository: mstorsjo/msvc-wine
+        path: ${{ github.workspace }}/msvc-wine
+        ref: master
+
     - name: Set build params
       id: cfg
       env:
@@ -117,26 +126,18 @@ jobs:
       id: env
       run: |
         ${{ steps.id.outputs.cross_Windows && '
-        [[ "$msvc_path" ]] || msvc_path="msvc"
-        [[ "$msvc_dir"  ]] || msvc_dir="$GITHUB_WORKSPACE/$msvc_path"
-        [[ "$msvc_sdk"  ]] || msvc_sdk="$msvc_dir/sdk"
+        msvc_dir="$GITHUB_WORKSPACE/msvc-wine"
+        msvc_sdk="$GITHUB_WORKSPACE/winsdk"
+        msvc_bin="$msvc_sdk/bin/x64"
         printf "%s=%s\n" \
                msvc_dir "$msvc_dir" \
                msvc_sdk "$msvc_sdk" \
-               msvc_bin "$msvc_sdk/bin/x64" >> "$GITHUB_OUTPUT"
+               msvc_bin "$msvc_bin" >> "$GITHUB_OUTPUT"
         ' || '' }}
         [[ "$build_dir" ]] || build_dir="$GITHUB_WORKSPACE/build"
         printf "%s=%s\n" \
                build_dir "$build_dir" \
                artifacts "$build_dir/${{ steps.cfg.outputs.exe }}${{ steps.cfg.outputs.exe_cl && ' $build_dir/' || '' }}${{ steps.cfg.outputs.exe_cl }}${{ steps.cfg.outputs.exe_ccl && ' $build_dir/' || '' }}${{ steps.cfg.outputs.exe_ccl }}" >> "$GITHUB_OUTPUT"
-
-    - name: Clone msvc-wine
-      if: ${{ steps.id.outputs.cross_Windows }}
-      uses: actions/checkout@v4
-      with:
-        repository: mstorsjo/msvc-wine
-        path: ${{ steps.env.outputs.msvc_dir }}
-        ref: master
 
     - name: Install dependencies
       env:
