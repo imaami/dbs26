@@ -90,10 +90,10 @@ jobs:
           "$CC" -arch x86_64 $CFLAGS -o "$ABS_EXE-x86_64" $SRC
           lipo -create -output "$ABS_EXE" "$ABS_EXE-arm64" "$ABS_EXE-x86_64"
         compile_cross_Windows: |
-          BIN="$MSVC_BIN" . "$MSVC_DIR/msvcenv-native.sh"
-          export PATH="$MSVC_BIN:$PATH"
-          "$CL" /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /Fe: "$ABS_EXE_CL" /nologo $SRC /MT
-          "$CC" --target=$TARGET_TRIPLE $CFLAGS -o "$ABS_EXE" $SRC
+          { BIN="$MSVC_BIN" . "$MSVC_DIR/msvcenv-native.sh";
+          export PATH="$MSVC_BIN:$PATH";
+          "$CL" /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "$ABS_EXE_CL" $SRC;
+          "$CC" --target=$TARGET_TRIPLE $CFLAGS -o "$ABS_EXE" $SRC; }
         post_compile_on_Linux_for_Windows: |
           "$CCL" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "$ABS_EXE_CCL" -fuse-ld=lld --nologo $SRC
 
@@ -191,7 +191,6 @@ jobs:
 
     - name: Update system packages
       run: |
-        set -x
         ${{ steps.cfg.outputs.update }}
 
     - uses: actions/checkout@v4
@@ -209,7 +208,6 @@ jobs:
         MSVC_DIR: ${{ steps.cfg.outputs.msvc_dir }}
         MSVC_SDK: ${{ steps.cfg.outputs.msvc_sdk }}
       run: |
-        set -x
         ${{ steps.cfg.outputs.depends }}
 
     - name: Introspect compilers
@@ -259,7 +257,6 @@ jobs:
         MSVC_SDK: ${{ steps.cfg.outputs.msvc_sdk }}
         SRC: ${{ steps.cfg.outputs.src }}
       run: |
-        set -x
         mkdir -p "$BUILD_DIR"
         ${{ steps.cfg.outputs.compile }}
 
