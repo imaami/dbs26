@@ -139,7 +139,7 @@ jobs:
 
         on_for: |
           f="${x}_on_${{ runner.os }}_for_${{ matrix.os }}"; y="${!f}"
-          [[ -z "${y// /}" ]] || { echo "$y"; continue; }
+          [[ -z "${y// /}" ]] || { a="$a $f"; continue; }
 
       run: |
         printf '%s\n' \
@@ -164,7 +164,6 @@ jobs:
                src="$SRC" >> "$GITHUB_OUTPUT"
 
         __step() {
-          declare -g RESULT=''
           local a b x f y
           for x in pre_$1 $1 post_$1; do
             f="${x}_on_${{ runner.os }}"; y="${!f}"
@@ -173,7 +172,7 @@ jobs:
             f="${x}_${{ env.BUILD_TYPE }}_${{ matrix.os }}"; y="${!f}"
             [[ -z "${y// /}" ]] || { a="$a $f"; continue; }
             f="${x}_${{ env.BUILD_TYPE }}"; y="${!f}"
-            [[ -z "${y// /}" ]] || { echo "$y"; continue; }
+            [[ -z "${y// /}" ]] || { a="$a $f"; continue; }
             y="${!x}"; [[ -z "${y// /}" ]] || a="$a $f"
           done
           for x in $a; do
@@ -186,6 +185,7 @@ jobs:
           done
         }
         for s in update depends compile validate; do
+          RESULT=''
           __step "$s"
           printf '%s<<EOF\neval %q\nEOF\n' "$s" "$RESULT" >> "$GITHUB_OUTPUT"
         done
