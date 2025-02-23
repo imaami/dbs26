@@ -175,14 +175,15 @@ jobs:
             y="${!x}"; [[ -z "${y// /}" ]] || echo "$y"
           done
         }
-        __fn="$(declare -f __step)"
-        if (( BASH_VERSINFO == 3 )); then
-          __fn=$(printf 'eval %q' "$__fn")
-        fi
+        #__fn="$(declare -f __step)"
+        #if (( BASH_VERSINFO == 3 )); then
+        #  __fn=$(printf 'eval %q' "$__fn")
+        #fi
         for s in update depends compile validate; do
+          __step "$s"
           {
             echo "$s<<EOF"
-            __step "$s" | grep -v '^ *$'
+            __step "$s"
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
         done
