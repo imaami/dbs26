@@ -248,7 +248,7 @@ jobs:
         BUILD_DIR: ${{ steps.cfg.outputs.build_dir }}
         CC: ${{ steps.cfg.outputs.cc }}
         CCL: ${{ steps.cfg.outputs.ccl }}
-        CL: ${{ steps.cfg.outputs.cl }}
+        CL: cl
         CFLAGS: ${{ steps.cfg.outputs.cflags }}
         EXE: ${{ steps.cfg.outputs.abs_exe }}
         EXE_CCL: ${{ steps.cfg.outputs.abs_exe_ccl }}
