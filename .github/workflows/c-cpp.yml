@@ -27,6 +27,8 @@ jobs:
           - os: macOS
             on: ubuntu-24.04
     steps:
+    - uses: actions/checkout@v4
+
     - name: id
       id: id
       env:
@@ -127,8 +129,6 @@ jobs:
         printf "%s=%s\n" \
                build_dir "$build_dir" \
                artifacts "$build_dir/${{ steps.cfg.outputs.exe }}${{ steps.cfg.outputs.exe_cl && ' $build_dir/' || '' }}${{ steps.cfg.outputs.exe_cl }}${{ steps.cfg.outputs.exe_ccl && ' $build_dir/' || '' }}${{ steps.cfg.outputs.exe_ccl }}" >> "$GITHUB_OUTPUT"
-
-    - uses: actions/checkout@v4
 
     - name: Clone msvc-wine
       if: ${{ steps.id.outputs.cross_Windows }}
