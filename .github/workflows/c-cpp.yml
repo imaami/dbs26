@@ -262,7 +262,7 @@ jobs:
           BIN="$MSVC_BIN" . "$MSVC_DIR/msvcenv-native.sh"
           export PATH="$MSVC_BIN:$PATH"
           "$CC" --target=$TARGET_TRIPLE $CFLAGS -o "$ABS_EXE" $SRC
-          "$CL" /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "$ABS_EXE_CL" /nologo $SRC
+          "$CL" /TC /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "$ABS_EXE_CL" $SRC
           if [[ "${{ steps.id.outputs.on_Linux_for_Windows }}" ]]; then
             "$CCL" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "$ABS_EXE_CCL" -fuse-ld=lld --nologo $SRC
           fi
