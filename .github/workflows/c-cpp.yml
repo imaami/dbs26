@@ -130,7 +130,7 @@ jobs:
         BUILD_TYPE: ${{ steps.id.outputs.cross }}${{ steps.id.outputs.native }}
         CC: ${{ steps.id.outputs.on_macOS && 'clang' || 'clang-21' }}
         CCL: ${{ steps.id.outputs.on_Linux_for_Windows && 'clang-cl-21' || '' }}
-        CL: ${{ steps.id.outputs.for_Windows && 'CL.EXE' || '' }}
+        CL: ${{ steps.id.outputs.for_Windows && 'cl' || '' }}
         DEST_DIR: ${{ github.workspace }}/dest
         EXT: ${{ steps.id.outputs.for_Windows && '.exe' || '' }}
         MSVC: ${{ steps.id.outputs.cross_Windows && 'msvc' || '' }}
@@ -261,9 +261,13 @@ jobs:
         if [[ "${{ steps.id.outputs.cross_Windows }}" ]]; then
           BIN="$MSVC_BIN" . "$MSVC_DIR/msvcenv-native.sh"
           export PATH="$MSVC_BIN:$PATH"
+          pwd
+          env
           "$CC" --target=$TARGET_TRIPLE $CFLAGS -o "$ABS_EXE" $SRC
-          "$CL" /TC /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "$ABS_EXE_CL" $SRC
+          pwd
+          "$CL" /TC /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT $SRC /Fe: "$ABS_EXE_CL"
           if [[ "${{ steps.id.outputs.on_Linux_for_Windows }}" ]]; then
+            pwd
             "$CCL" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "$ABS_EXE_CCL" -fuse-ld=lld --nologo $SRC
           fi
         else
