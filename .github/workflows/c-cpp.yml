@@ -62,35 +62,19 @@ jobs:
         done
 
         printf '%s\n' \
-               "on_${{ runner.os }}=on_${{ runner.os }}" \
+               "on_$RUNNER_OS=on_$RUNNER_OS" \
                "for_${{ matrix.os }}=for_${{ matrix.os }}" \
                ${{ env.on_ }}${{ env._for_ }}${{ env._on_ }}${{ env._for_ }} \
                "build=${{ matrix.os != runner.os && env.os_ || '' }}${{ matrix.on }}" \
-               "${{ matrix.os }}_${{ runner.os }}=${{ env.type }}_${{ matrix.os }}" \
                "${{ env.type }}_${{ matrix.os }}=${{ env.type }}_${{ matrix.os }}" \
                "${{ env.type }}=${{ env.type }}" >> "$GITHUB_OUTPUT"
+
     - name: Set build params
       id: cfg
       env:
-        cc: ${{ steps.id.outputs.on_macOS && 'clang' || 'clang-21' }}
-        cl: ${{ steps.id.outputs.for_Windows && 'cl' || '' }}
-        ccl: ${{ steps.id.outputs.on_Linux_for_Windows && 'clang-cl-21' || '' }}
-        baseflags: -std=gnu2${{ steps.id.outputs.on_macOS && 'x' || '3' }} -flto=full -O3 -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1
-        archflags: ${{ ! steps.id.outputs.for_macOS && ' -fuse-ld=lld' || '' }}${{ steps.id.outputs.for_Linux && ' -march=x86-64-v3 -mtune=znver3' || '' }}
-        ext: ${{ steps.id.outputs.for_Windows && '.exe' || '' }}
-      run: |
-        printf '%s\n' \
-               cc=${{ env.cc }} ${{ env.cl && 'cl=' || '' }}${{ env.cl }} ${{ env.ccl && 'ccl=' || '' }}${{ env.ccl }} \
-               cflags="${{ env.baseflags }}${{ env.archflags }}" \
-               exe=dbs26-${{ env.cc }}${{ env.ext }} \
-               ${{ env.cl && 'exe_cl=dbs26-' || '' }}${{ env.cl }}${{ env.cl && env.ext || '' }} \
-               ${{ env.ccl && 'exe_ccl=dbs26-' || '' }}${{ env.ccl }}${{ env.ccl && env.ext || '' }} \
-               pkg=dbs26-${{ steps.id.outputs.build }} \
-               src="args.c dbs26.c" >> "$GITHUB_OUTPUT"
-    - name: Update system packages
-      env:
         pre_update_on_Linux_for_Windows: |
-          ${{ steps.id.outputs.on_Linux_for_Windows && 'sudo mkdir -pm755 /etc/apt/keyrings
+          ${{ steps.id.outputs.on_Linux_for_Windows && '
+          sudo mkdir -pm755 /etc/apt/keyrings
           wget -qO- https://dl.winehq.org/wine-builds/winehq.key | \
           sudo gpg --dearmor -o /etc/apt/keyrings/winehq-archive.key -
           wget -qO- https://dl.winehq.org/wine-builds/ubuntu/dists/noble/winehq-noble.sources | \
@@ -105,12 +89,100 @@ jobs:
           sudo apt-get update
           sudo apt-get upgrade -y' || '' }}
         update_on_macOS: |
-          ${{ steps.id.outputs.on_macOS && 'set +e
+          ${{ steps.id.outputs.on_macOS && '
           brew update
           brew upgrade
           brew install bash' || '' }}
+        pre_depends_on_Linux: |
+          ${{ steps.id.outputs.on_Linux && '
+          sudo apt-get install -y clang clang-21 lld lld-21 llvm-21-linker-tools' || '' }}
+        pre_depends_on_Linux_for_Windows: |
+          ${{ steps.id.outputs.on_Linux_for_Windows && '
+          sudo apt-get install -y ca-certificates msitools python3 winbind winehq-staging' || '' }}
+        pre_depends_on_macOS_for_Windows: |
+          ${{ steps.id.outputs.on_macOS_for_Windows && '
+          brew install msitools wine@staging' || '' }}
+        depends_cross_Windows: |
+          ${{ steps.id.outputs.cross_Windows && '
+          mkdir -p "$msvc_sdk"
+          "$msvc_dir/vsdownload.py" --accept-license --dest "$msvc_sdk"
+          "$msvc_dir/install.sh" "$msvc_sdk"' || '' }}
+        post_depends_on_macOS: |
+          ${{ steps.id.outputs.on_macOS && '
+          brew install coreutils gnu-sed
+          P="$(brew --prefix)/opt"
+          echo "$P/coreutils/libexec/gnubin:$P/gnu-sed/libexec/gnubin" >> "$GITHUB_PATH"' || '' }}
+        post_depends_on_macOS_for_Windows: |
+          ${{ steps.id.outputs.on_macOS_for_Windows && '
+          brew install llvm lld binutils
+          P="$(brew --prefix)/opt"
+          echo "$P/llvm/bin:$P/opt/binutils/bin" >> "$GITHUB_PATH"' || '' }}
+        compile_native_Linux: |
+          "$CC" $CFLAGS -o "$BUILD_DIR/$EXE" $SRC
+          strip --strip-all "$BUILD_DIR/$EXE"
+        compile_native_macOS: |
+          "$CC" -arch arm64 $CFLAGS -o "$BUILD_DIR/$EXE-arm64" $SRC
+          "$CC" -arch x86_64 $CFLAGS -o "$BUILD_DIR/$EXE-x86_64" $SRC
+          lipo -create -output "$BUILD_DIR/$EXE" "$BUILD_DIR/$EXE-arm64" "$BUILD_DIR/$EXE-x86_64"
+        compile_cross_Windows: |
+          BIN="$msvc_bin" . "$msvc_dir/msvcenv-native.sh"
+          export PATH="$msvc_bin:$PATH"
+          echo "\"$CC\" --target=$TARGET_TRIPLE $CFLAGS} -o \"$BUILD_DIR/$EXE\" $SRC"
+          "$CC" --target=$TARGET_TRIPLE $CFLAGS -o "$BUILD_DIR/$EXE" $SRC
+          echo "\"$CL\" /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: \"$BUILD_DIR/$EXE_CL\" $SRC"
+          "$CL" /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /nologo /Fe: "$BUILD_DIR/$EXE_CL" $SRC
+        post_compile_on_Linux_for_Windows: |
+          echo "\"$CCL\" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: \"$BUILD_DIR/$EXE_CCL\" -fuse-ld=lld $SRC"
+          "$CCL" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "$BUILD_DIR/$EXE_CCL" -fuse-ld=lld --nologo $SRC
+        pre_validate_on_macOS_for_Windows: |
+          ${{ steps.id.outputs.on_macOS_for_Windows && 'try() {
+            WINEDEBUG=-all wine "$@" -o -     | sha1sum       ; rm -f "$out"
+            WINEDEBUG=-all wine "$@" -o "$out"; sha1sum "$out"; rm -f "$out"
+          }' || '' }}
+        pre_validate_cross_Windows: |
+          ${{ steps.id.outputs.cross_Windows && 'try() {
+            WINEDEBUG=-all wine64 "$@" -o -     | sha1sum       ; rm -f "$out"
+            WINEDEBUG=-all wine64 "$@" -o "$out"; sha1sum "$out"; rm -f "$out"
+          }' || '' }}
+        pre_validate_native: |
+          ${{ steps.id.outputs.native && 'try() {
+            "$@" -o -     | sha1sum       ; rm -f "$out"
+            "$@" -o "$out"; sha1sum "$out"; rm -f "$out"
+          }' || '' }}
+        validate_native_Linux: |
+          ${{ steps.id.outputs.native_Linux && '
+          try "./$EXE"' || '' }}
+        validate_native_macOS: |
+          ${{ steps.id.outputs.native_macOS && '
+          try arch -arm64 "./$EXE"
+          try arch -x86_64 "./$EXE"' || '' }}
+        validate_cross_Windows: |
+          ${{ steps.id.outputs.cross_Windows && '
+          try "./$EXE"
+          try "./$EXE_CL"' || '' }}
+        post_validate_on_Linux_for_Windows: |
+          ${{ steps.id.outputs.on_Linux_for_Windows && '
+          try "./$EXE_CCL"' || '' }}
+        ARCH_CFLAGS: ${{ ! steps.id.outputs.for_macOS && ' -fuse-ld=lld' || '' }}${{ steps.id.outputs.for_Linux && ' -march=x86-64-v3 -mtune=znver3' || '' }}
+        BASE_CFLAGS: -std=gnu2${{ steps.id.outputs.on_macOS && 'x' || '3' }} -flto=full -O3 -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1
+        BUILD_ID: ${{ steps.id.outputs.build }}
+        CC: ${{ steps.id.outputs.on_macOS && 'clang' || 'clang-21' }}
+        CCL: ${{ steps.id.outputs.on_Linux_for_Windows && 'clang-cl-21' || '' }}
+        CL: ${{ steps.id.outputs.for_Windows && 'cl' || '' }}
+        EXT: ${{ steps.id.outputs.for_Windows && '.exe' || '' }}
+      run: |
+        printf '%s\n' \
+               cc="$CC" exe="dbs26-${CC##*/}$EXT"} \
+               ${CL:+cl="$CL" +exe_cl="dbs26-${CL##*/}$EXT"} \
+               ${CCL:+ccl="$CCL"} exe_ccl="dbs26-${CCL##*/}$EXT"} \
+               cflags="$BASE_CFLAGS$ARCH_CFLAGS" \
+               pkg="dbs26-$BUILD_ID" \
+               src="args.c dbs26.c" >> "$GITHUB_OUTPUT"
+    - name: Update system packages
+      env:
       run: |
         ${{ steps.id.outputs.update }}
+
     - name: Set env variables
       id: env
       run: |
@@ -142,24 +214,9 @@ jobs:
       env:
         msvc_dir: ${{ steps.env.outputs.msvc_dir }}
         msvc_sdk: ${{ steps.env.outputs.msvc_sdk }}
-        pre_depends_on_Linux: |
-          ${{ steps.id.outputs.on_Linux && 'sudo apt-get install -y clang clang-21 lld lld-21 llvm-21-linker-tools' || '' }}
-        pre_depends_on_Linux_for_Windows: |
-          ${{ steps.id.outputs.on_Linux_for_Windows && 'sudo apt-get install -y ca-certificates msitools python3 winbind winehq-staging' || '' }}
-        pre_depends_on_macOS_for_Windows: |
-          ${{ steps.id.outputs.on_macOS_for_Windows && 'brew install msitools wine@staging' || '' }}
-        depends_cross_Windows: |
-          ${{ steps.id.outputs.cross_Windows && 'mkdir -p "$msvc_sdk"' || '' }}
-          ${{ steps.id.outputs.cross_Windows && '"$msvc_dir/vsdownload.py" --accept-license --dest "$msvc_sdk"' || '' }}
-          ${{ steps.id.outputs.cross_Windows && '"$msvc_dir/install.sh" "$msvc_sdk"' || '' }}
-        post_depends_on_macOS: |
-          ${{ steps.id.outputs.on_macOS && 'brew install coreutils gnu-sed' || '' }}
-          ${{ steps.id.outputs.on_macOS && 'echo "$(brew --prefix)/opt/coreutils/libexec/gnubin:$(brew --prefix)/opt/gnu-sed/libexec/gnubin" >> "$GITHUB_PATH"' || '' }}
-        post_depends_on_macOS_for_Windows: |
-          ${{ steps.id.outputs.on_macOS_for_Windows && 'brew install llvm lld binutils' || '' }}
-          ${{ steps.id.outputs.on_macOS_for_Windows && 'echo "$(brew --prefix)/opt/llvm/bin:$(brew --prefix)/opt/binutils/bin" >> "$GITHUB_PATH"' || '' }}
       run: |
         ${{ steps.id.outputs.depends }}
+
     - name: Introspect compilers
       run: |
         set +e
@@ -191,26 +248,9 @@ jobs:
     - name: Compile
       working-directory: ${{ github.workspace }}/src
       env:
-        build_dir: ${{ steps.env.outputs.build_dir }}
-        compile_native_Linux: |
-          "${{ steps.cfg.outputs.cc }}" ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
-          strip --strip-all "$build_dir/${{ steps.cfg.outputs.exe }}"
-        compile_native_macOS: |
-          "${{ steps.cfg.outputs.cc }}" -arch arm64 ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}-arm64" ${{ steps.cfg.outputs.src }}
-          "${{ steps.cfg.outputs.cc }}" -arch x86_64 ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}-x86_64" ${{ steps.cfg.outputs.src }}
-          lipo -create -output "$build_dir/${{ steps.cfg.outputs.exe }}" "$build_dir/${{ steps.cfg.outputs.exe }}-arm64" "$build_dir/${{ steps.cfg.outputs.exe }}-x86_64"
-        compile_cross_Windows: |
-          BIN="${{ steps.env.outputs.msvc_bin }}" . "${{ steps.env.outputs.msvc_dir }}/msvcenv-native.sh"
-          export PATH="${{ steps.env.outputs.msvc_bin }}:$PATH"
-          echo "\"${{ steps.cfg.outputs.cc }}\" --target=$TARGET_TRIPLE ${{ steps.cfg.outputs.cflags }} -o \"$build_dir/${{ steps.cfg.outputs.exe }}\" ${{ steps.cfg.outputs.src }}"
-          "${{ steps.cfg.outputs.cc }}" --target=$TARGET_TRIPLE ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
-          echo "\"${{ steps.cfg.outputs.cl }}\" /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: \"$build_dir/${{ steps.cfg.outputs.exe_cl }}\" ${{ steps.cfg.outputs.src }}"
-          "${{ steps.cfg.outputs.cl }}" /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /nologo /Fe: "$build_dir/${{ steps.cfg.outputs.exe_cl }}" ${{ steps.cfg.outputs.src }}
-        post_compile_on_Linux_for_Windows: |
-          echo "\"${{ steps.cfg.outputs.ccl }}\" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: \"$build_dir/${{ steps.cfg.outputs.exe_ccl }}\" -fuse-ld=lld ${{ steps.cfg.outputs.src }}"
-          "${{ steps.cfg.outputs.ccl }}" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "$build_dir/${{ steps.cfg.outputs.exe_ccl }}" -fuse-ld=lld --nologo ${{ steps.cfg.outputs.src }}
+        BUILD_DIR: ${{ steps.env.outputs.build_dir }}
       run: |
-        mkdir -p "$build_dir"
+        mkdir -p "$BUILD_DIR"
         ${{ steps.id.outputs.compile }}
 
     - name: Package
@@ -225,31 +265,9 @@ jobs:
     - name: Validate
       working-directory: ${{ steps.env.outputs.build_dir }}
       env:
-        out: ${{ runner.temp }}/test.bin
-        pre_validate_on_macOS_for_Windows: |
-          ${{ steps.id.outputs.on_macOS_for_Windows && 'try() {
-            WINEDEBUG=-all wine "$@" -o -     | sha1sum       ; rm -f "$out"
-            WINEDEBUG=-all wine "$@" -o "$out"; sha1sum "$out"; rm -f "$out"
-          }' || '' }}
-        pre_validate_cross_Windows: |
-          ${{ steps.id.outputs.cross_Windows && 'try() {
-            WINEDEBUG=-all wine64 "$@" -o -     | sha1sum       ; rm -f "$out"
-            WINEDEBUG=-all wine64 "$@" -o "$out"; sha1sum "$out"; rm -f "$out"
-          }' || '' }}
-        pre_validate_native: |
-          ${{ steps.id.outputs.native && 'try() {
-            "$@" -o -     | sha1sum       ; rm -f "$out"
-            "$@" -o "$out"; sha1sum "$out"; rm -f "$out"
-          }' || '' }}
-        validate_native_Linux: |
-          ${{ steps.id.outputs.native_Linux && 'try ./' || '' }}${{ steps.id.outputs.native_Linux && steps.cfg.outputs.exe || '' }}
-        validate_native_macOS: |
-          ${{ steps.id.outputs.native_macOS && 'try arch -arm64 ./' || '' }}${{ steps.id.outputs.native_macOS && steps.cfg.outputs.exe || '' }}
-          ${{ steps.id.outputs.native_macOS && 'try arch -x86_64 ./' || '' }}${{ steps.id.outputs.native_macOS && steps.cfg.outputs.exe || '' }}
-        validate_cross_Windows: |
-          ${{ steps.id.outputs.cross_Windows && 'try ./' || '' }}${{ steps.id.outputs.cross_Windows && steps.cfg.outputs.exe || '' }}
-          ${{ steps.id.outputs.cross_Windows && 'try ./' || '' }}${{ steps.id.outputs.cross_Windows && steps.cfg.outputs.exe_cl || '' }}
-        post_validate_on_Linux_for_Windows: |
-          ${{ steps.id.outputs.on_Linux_for_Windows && 'try ./' || '' }}${{ steps.id.outputs.on_Linux_for_Windows && steps.cfg.outputs.exe_ccl || '' }}
+        EXE: ${{ steps.cfg.outputs.exe }}
+        EXE_CCL: ${{ steps.cfg.outputs.exe_ccl }}
+        EXE_CL: ${{ steps.cfg.outputs.exe_cl }}
+        OUT: ${{ runner.temp }}/test.bin
       run: |
         ${{ steps.id.outputs.validate }}
