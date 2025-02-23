@@ -138,7 +138,7 @@ jobs:
 
         on_for: |
           f="${x}_on_${{ runner.os }}_for_${{ matrix.os }}"; y="${!f}"
-          [[ -z "${y// /}" ]] || { echo "$y"; continue; }
+          [[ -z "${y// /}" ]] || { printf '%q\n' "$y"; continue; }
 
       run: |
         printf '%s\n' \
@@ -166,13 +166,13 @@ jobs:
           local x f y
           for x in pre_$1 $1 post_$1; do
             f="${x}_on_${{ runner.os }}"; y="${!f}"
-            [[ -z "${y// /}" ]] || echo "$y"
+            [[ -z "${y// /}" ]] || printf '%q\n' "$y"
             ${{ steps.id.outputs.cross && env.on_for || '' }}
             f="${x}_${{ env.BUILD_TYPE }}_${{ matrix.os }}"; y="${!f}"
-            [[ -z "${y// /}" ]] || { echo "$y"; continue; }
+            [[ -z "${y// /}" ]] || { printf '%q\n' "$y"; continue; }
             f="${x}_${{ env.BUILD_TYPE }}"; y="${!f}"
-            [[ -z "${y// /}" ]] || { echo "$y"; continue; }
-            y="${!x}"; [[ -z "${y// /}" ]] || echo "$y"
+            [[ -z "${y// /}" ]] || { printf '%q\n' "$y"; continue; }
+            y="${!x}"; [[ -z "${y// /}" ]] || printf '%q\n' "$y"
           done
         }
         #__fn="$(declare -f __step)"
