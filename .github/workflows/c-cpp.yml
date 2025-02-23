@@ -83,20 +83,20 @@ jobs:
           echo "$P/llvm/bin:$P/opt/binutils/bin" >> "$GITHUB_PATH"
 
         compile_native_Linux: |
-          "$CC" $CFLAGS -o "$EXE" $SRC
-          strip --strip-all "$EXE"
+          "$CC" $CFLAGS -o "$ABS_EXE" $SRC
+          strip --strip-all "$ABS_EXE"
         compile_native_macOS: |
-          "$CC" -arch arm64 $CFLAGS -o "$EXE-arm64" $SRC
-          "$CC" -arch x86_64 $CFLAGS -o "$EXE-x86_64" $SRC
-          lipo -create -output "$EXE" "$EXE-arm64" "$EXE-x86_64"
+          "$CC" -arch arm64 $CFLAGS -o "$ABS_EXE-arm64" $SRC
+          "$CC" -arch x86_64 $CFLAGS -o "$ABS_EXE-x86_64" $SRC
+          lipo -create -output "$ABS_EXE" "$ABS_EXE-arm64" "$ABS_EXE-x86_64"
         compile_cross_Windows: |
           BIN="$MSVC_BIN" . "$MSVC_DIR/msvcenv-native.sh"
           export PATH="$MSVC_BIN:$PATH"
-          "$CC" --target=$TARGET_TRIPLE $CFLAGS -o "$EXE" $SRC
-          "$CL" /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "$BUILD_DIR/dbs26-cl.exe" /nologo $SRC
+          "$CC" --target=$TARGET_TRIPLE $CFLAGS -o "$ABS_EXE" $SRC
+          "$CL" /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "$ABS_EXE_CL" /nologo $SRC
 
         post_compile_on_Linux_for_Windows: |
-          "$CCL" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "$EXE_CCL" -fuse-ld=lld --nologo $SRC
+          "$CCL" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "$ABS_EXE_CCL" -fuse-ld=lld --nologo $SRC
 
         pre_validate_on_macOS_for_Windows: |
           try() {
@@ -143,20 +143,20 @@ jobs:
 
       run: |
         printf '%s\n' \
-               abs_exe="$BUILD_DIR/dbs26-$CC$EXT" \
-               abs_exe_ccl="$BUILD_DIR/dbs26-$CCL$EXT" \
-               abs_exe_cl="$BUILD_DIR/dbs26-cl$EXT" \
+               abs_exe="$BUILD_DIR/dbs26_$CC$EXT" \
+               abs_exe_ccl="$BUILD_DIR/dbs26_$CCL$EXT" \
+               abs_exe_cl="$BUILD_DIR/dbs26_$CL$EXT" \
                build_dir="$BUILD_DIR" \
                build_job="$BUILD_JOB" \
                build_type="$BUILD_TYPE" \
                cc="$CC" \
                ccl="$CCL" \
                cflags="$BASE_CFLAGS$ARCH_CFLAGS" \
-               cl=cl \
+               cl="$CL" \
                dest_dir="$DEST_DIR" \
-               exe="dbs26-$CC$EXT" \
-               exe_ccl="dbs26-$CCL$EXT" \
-               exe_cl="dbs26-cl$EXT" \
+               exe="dbs26_$CC$EXT" \
+               exe_ccl="dbs26_$CCL$EXT" \
+               exe_cl="dbs26_$CL$EXT" \
                ${MSVC:+msvc_bin="$GITHUB_WORKSPACE/$MSVC/sdk/bin/x64"} \
                ${MSVC:+msvc_dir="$GITHUB_WORKSPACE/$MSVC"} \
                ${MSVC:+msvc_sdk="$GITHUB_WORKSPACE/$MSVC/sdk"} \
@@ -249,9 +249,9 @@ jobs:
         CCL: ${{ steps.cfg.outputs.ccl }}
         CL: ${{ steps.cfg.outputs.cl }}
         CFLAGS: ${{ steps.cfg.outputs.cflags }}
-        EXE: ${{ steps.cfg.outputs.abs_exe }}
-        EXE_CCL: ${{ steps.cfg.outputs.abs_exe_ccl }}
-        EXE_CL: ${{ steps.cfg.outputs.abs_exe_cl }}
+        ABS_EXE: ${{ steps.cfg.outputs.abs_exe }}
+        ABS_EXE_CCL: ${{ steps.cfg.outputs.abs_exe_ccl }}
+        ABS_EXE_CL: ${{ steps.cfg.outputs.abs_exe_cl }}
         MSVC_BIN: ${{ steps.cfg.outputs.msvc_bin }}
         MSVC_DIR: ${{ steps.cfg.outputs.msvc_dir }}
         MSVC_SDK: ${{ steps.cfg.outputs.msvc_sdk }}
