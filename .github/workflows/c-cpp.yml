@@ -93,10 +93,10 @@ jobs:
           BIN="$MSVC_BIN" . "$MSVC_DIR/msvcenv-native.sh"
           export PATH="$MSVC_BIN:$PATH"
           "$CC" --target=$TARGET_TRIPLE $CFLAGS -o "$EXE" $SRC
-          #"$CL" /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "$BUILD_DIR/dbs26-cl.exe" /nologo $SRC
+          "$CL" /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "$BUILD_DIR/dbs26-cl.exe" /nologo $SRC
 
         post_compile_on_Linux_for_Windows: |
-          #"$CCL" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "$EXE_CCL" -fuse-ld=lld --nologo $SRC
+          "$CCL" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "$EXE_CCL" -fuse-ld=lld --nologo $SRC
 
         pre_validate_on_macOS_for_Windows: |
           try() {
@@ -164,27 +164,35 @@ jobs:
                src="$SRC" >> "$GITHUB_OUTPUT"
 
         __step() {
-          local x f y
+          declare -g RESULT=''
+          local a b x f y
           for x in pre_$1 $1 post_$1; do
             f="${x}_on_${{ runner.os }}"; y="${!f}"
-            [[ -z "${y// /}" ]] || echo "$y"
+            [[ -z "${y// /}" ]] || a="$a $f"
             ${{ steps.id.outputs.cross && env.on_for || '' }}
             f="${x}_${{ env.BUILD_TYPE }}_${{ matrix.os }}"; y="${!f}"
-            [[ -z "${y// /}" ]] || { echo "$y"; continue; }
+            [[ -z "${y// /}" ]] || { a="$a $f"; continue; }
             f="${x}_${{ env.BUILD_TYPE }}"; y="${!f}"
             [[ -z "${y// /}" ]] || { echo "$y"; continue; }
-            y="${!x}"; [[ -z "${y// /}" ]] || echo "$y"
+            y="${!x}"; [[ -z "${y// /}" ]] || a="$a $f"
+          done
+          for x in $a; do
+            printf -vb -- '%s\n' "$(declare -p "$x")"
+            RESULT="$RESULT$b"
+          done
+          for x in $a; do
+            printf -vb -- 'eval "$%s"\n' "$x"
+            RESULT="$RESULT$b"
           done
         }
         for s in update depends compile validate; do
-          printf '%s<<EOF\neval %q\nEOF\n' "$s" "$(__step "$s")" >> "$GITHUB_OUTPUT"
+          __step "$s"
+          printf '%s<<EOF\neval %q\nEOF\n' "$s" "$RESULT" >> "$GITHUB_OUTPUT"
         done
 
     - name: Update system packages
-      env:
-        update: ${{ steps.cfg.outputs.update }}
       run: |
-        echo "$update"
+        set -x
         ${{ steps.cfg.outputs.update }}
 
     - uses: actions/checkout@v4
@@ -201,9 +209,8 @@ jobs:
       env:
         MSVC_DIR: ${{ steps.cfg.outputs.msvc_dir }}
         MSVC_SDK: ${{ steps.cfg.outputs.msvc_sdk }}
-        depends: ${{ steps.cfg.outputs.depends }}
       run: |
-        echo "$depends"
+        set -x
         ${{ steps.cfg.outputs.depends }}
 
     - name: Introspect compilers
@@ -249,7 +256,6 @@ jobs:
         MSVC_DIR: ${{ steps.cfg.outputs.msvc_dir }}
         MSVC_SDK: ${{ steps.cfg.outputs.msvc_sdk }}
         SRC: ${{ steps.cfg.outputs.src }}
-        compile: ${{ steps.cfg.outputs.compile }}
       run: |
         set -x
         mkdir -p "$BUILD_DIR"
@@ -272,4 +278,5 @@ jobs:
         EXE_CL: ${{ steps.cfg.outputs.exe_cl }}
         OUT: ${{ runner.temp }}/test.bin
       run: |
+        set -x
         ${{ steps.cfg.outputs.validate }}
