@@ -145,9 +145,9 @@ jobs:
         pre_depends_on_Linux: |
           ${{ steps.id.outputs.on_Linux && 'sudo apt-get install -y clang clang-21 lld lld-21 llvm-21-linker-tools' || '' }}
         pre_depends_on_Linux_for_Windows: |
-          ${{ steps.id.outputs.on_Linux_for_Windows && 'sudo apt-get install -y ca-certificates msitools python3 winbind winehq-staging' || '' }}
+          ${{ steps.id.outputs.on_Linux_for_Windows && 'sudo apt-get install -y ca-certificates msitools python3 winbind winehq-stable' || '' }}
         pre_depends_on_macOS_for_Windows: |
-          ${{ steps.id.outputs.on_macOS_for_Windows && 'brew install msitools wine@staging' || '' }}
+          ${{ steps.id.outputs.on_macOS_for_Windows && 'brew install msitools wine-stable' || '' }}
         depends_cross_Windows: |
           ${{ steps.id.outputs.cross_Windows && 'mkdir -p "$msvc_sdk"' || '' }}
           ${{ steps.id.outputs.cross_Windows && '"$msvc_dir/vsdownload.py" --accept-license --dest "$msvc_sdk"' || '' }}
