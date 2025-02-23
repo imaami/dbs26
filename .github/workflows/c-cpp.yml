@@ -30,15 +30,15 @@ jobs:
     - name: Set build identity
       id: id
       env:
-        _for_: ${{ matrix.os != runner.os && '_for_' || '' }}${{ matrix.os != runner.os && matrix.os || '' }}
         on_: ${{ matrix.os != runner.os && 'on_' || '' }}${{ matrix.os != runner.os && runner.os || '' }}
+        _for_: ${{ matrix.os != runner.os && '_for_' || '' }}${{ matrix.os != runner.os && matrix.os || '' }}
         _on_: ${{ matrix.os != runner.os && '=on_' || '' }}${{ matrix.os != runner.os && runner.os || '' }}
         type: ${{ matrix.os == runner.os && 'native' || 'cross' }}
       run: |
         printf '%s\n' ${{ env.on_ }}${{ env._for_ }}${{ env._on_ }}${{ env._for_ }} \
                on_${{ runner.os }}=on_${{ runner.os }} \
                for_${{ matrix.os }}=for_${{ matrix.os }} \
-               ${{ env.on_ }}${{ env._for_ }}${{ env._on_ }}${{ env._for_ }} \
+               ${{ env.type }}_${{ matrix.os }}=${{ env.type }}_${{ matrix.os }} \
                ${{ env.type }}=${{ env.type }} >> "$GITHUB_OUTPUT"
 
     - name: Configure build
@@ -99,7 +99,6 @@ jobs:
           "$CC" -arch x86_64 $CFLAGS -o "$EXE-x86_64" $SRC
           lipo -create -output "$EXE" "$EXE-arm64" "$EXE-x86_64"
         compile_cross_Windows: |
-          set +x
           BIN="$MSVC_BIN" . "$MSVC_DIR/msvcenv-native.sh"
           export PATH="$MSVC_BIN:$PATH"
           "$CC" --target=$TARGET_TRIPLE $CFLAGS -o "$EXE" $SRC
