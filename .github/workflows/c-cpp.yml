@@ -27,23 +27,21 @@ jobs:
           - os: macOS
             on: ubuntu-24.04
     steps:
-    - name: id
+    - name: Set build identity
       id: id
       env:
-        os_: ${{ matrix.os != runner.os && matrix.os || '' }}${{ matrix.os != runner.os && '_' || '' }}
         _for_: ${{ matrix.os != runner.os && '_for_' || '' }}${{ matrix.os != runner.os && matrix.os || '' }}
         on_: ${{ matrix.os != runner.os && 'on_' || '' }}${{ matrix.os != runner.os && runner.os || '' }}
         _on_: ${{ matrix.os != runner.os && '=on_' || '' }}${{ matrix.os != runner.os && runner.os || '' }}
         type: ${{ matrix.os == runner.os && 'native' || 'cross' }}
       run: |
-        printf '%s\n' \
+        printf '%s\n' ${{ env.on_ }}${{ env._for_ }}${{ env._on_ }}${{ env._for_ }} \
                on_${{ runner.os }}=on_${{ runner.os }} \
                for_${{ matrix.os }}=for_${{ matrix.os }} \
                ${{ env.on_ }}${{ env._for_ }}${{ env._on_ }}${{ env._for_ }} \
-               ${{ env.type }}_${{ matrix.os }}=${{ env.type }}_${{ matrix.os }} \
                ${{ env.type }}=${{ env.type }} >> "$GITHUB_OUTPUT"
 
-    - name: Set build params
+    - name: Configure build
       id: cfg
       env:
         pre_update_on_Linux_for_Windows: |
@@ -101,14 +99,12 @@ jobs:
           "$CC" -arch x86_64 $CFLAGS -o "$EXE-x86_64" $SRC
           lipo -create -output "$EXE" "$EXE-arm64" "$EXE-x86_64"
         compile_cross_Windows: |
+          set +x
           BIN="$MSVC_BIN" . "$MSVC_DIR/msvcenv-native.sh"
           export PATH="$MSVC_BIN:$PATH"
-          echo "\"$CC\" --target=$TARGET_TRIPLE $CFLAGS -o \"$EXE\" $SRC"
           "$CC" --target=$TARGET_TRIPLE $CFLAGS -o "$EXE" $SRC
-          echo "\"$CL\" /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /nologo /Fe: \"$EXE_CL\" $SRC"
           "$CL" /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /nologo /Fe: "$EXE_CL" $SRC
         post_compile_on_Linux_for_Windows: |
-          echo "\"$CCL\" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: \"$EXE_CCL\" -fuse-ld=lld --nologo $SRC"
           "$CCL" /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "$EXE_CCL" -fuse-ld=lld --nologo $SRC
 
         pre_validate_on_macOS_for_Windows: |
