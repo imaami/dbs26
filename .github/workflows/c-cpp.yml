@@ -183,7 +183,7 @@ jobs:
           __step "$s"
           {
             echo "$s<<EOF"
-            __step "$s"
+            printf 'eval %q\n' "$(__step "$s")"
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
         done
@@ -260,6 +260,7 @@ jobs:
         compile: ${{ steps.cfg.outputs.compile }}
       run: |
         echo "$compile"
+        set -x
         mkdir -p "$BUILD_DIR"
         ${{ steps.cfg.outputs.compile }}
 
