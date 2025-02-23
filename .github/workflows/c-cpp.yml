@@ -189,7 +189,10 @@ jobs:
         done
 
     - name: Update system packages
+      env:
+        update: ${{ steps.cfg.outputs.update }}
       run: |
+        echo "$update"
         ${{ steps.cfg.outputs.update }}
 
     - uses: actions/checkout@v4
@@ -206,7 +209,9 @@ jobs:
       env:
         MSVC_DIR: ${{ steps.cfg.outputs.msvc_dir }}
         MSVC_SDK: ${{ steps.cfg.outputs.msvc_sdk }}
+        depends: ${{ steps.cfg.outputs.depends }}
       run: |
+        echo "$depends"
         ${{ steps.cfg.outputs.depends }}
 
     - name: Introspect compilers
@@ -252,7 +257,9 @@ jobs:
         MSVC_DIR: ${{ steps.cfg.outputs.msvc_dir }}
         MSVC_SDK: ${{ steps.cfg.outputs.msvc_sdk }}
         SRC: ${{ steps.cfg.outputs.src }}
+        compile: ${{ steps.cfg.outputs.compile }}
       run: |
+        echo "$compile"
         mkdir -p "$BUILD_DIR"
         ${{ steps.cfg.outputs.compile }}
 
