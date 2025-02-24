@@ -82,8 +82,10 @@ jobs:
 
         ${{ steps.id.outputs.cross_Windows && '
         MSVC_DIR="$GITHUB_WORKSPACE/msvc-wine"
-        MSVC_SDK="$GITHUB_WORKSPACE/winsdk"
+        SDK_PATH="winsdk"
+        MSVC_SDK="$GITHUB_WORKSPACE/$SDK_PATH"
         printf "%s\n" \
+               sdk_path="$SDK_PATH" \
                msvc_dir="$MSVC_DIR" \
                msvc_sdk="$MSVC_SDK" \
                msvc_bin="$MSVC_SDK/bin/x64" >> "$GITHUB_OUTPUT"
@@ -131,14 +133,23 @@ jobs:
           mkdir -p "$MSVC_SDK/cache"
           "$MSVC_DIR/vsdownload.py" --accept-license --print-version --save-manifest || true
           manifest=$(ls -1tr | grep '\.manifest$' | tail -1)
-          echo "manifest=$manifest" >> "$GITHUB_OUTPUT"
           "$MSVC_DIR/vsdownload.py" --accept-license --manifest "$manifest" --print-selection > "selection.txt"
-          echo "key=msvc-${manifest%\.manifest}-$(sha1sum selection.txt | cut -c1-16)" >> "$GITHUB_OUTPUT"
+          hash=$(sha1sum selection.txt)
+          key0="msvc-${manifest%\.manifest}-"
+          key1="${key0%\.*-}"
+          key2="${key1%\.*}"
+          key3="${key2%\.*}"
+          key0="$key0${hash::16}"
+          echo "key0=$key0" >> "$GITHUB_OUTPUT"
+          echo "key1=$key1" >> "$GITHUB_OUTPUT"
+          echo "key2=$key2" >> "$GITHUB_OUTPUT"
+          echo "key3=$key3" >> "$GITHUB_OUTPUT"
+          echo "manifest=$manifest" >> "$GITHUB_OUTPUT"
           mv "$manifest" selection.txt "$MSVC_SDK/"
 
         depends_cross_Windows: |
-          echo "MSVC SDK cache key: $cache_key $cache_manifest"
-          "$MSVC_DIR/vsdownload.py" --accept-license --manifest "$MSVC_SDK/$cache_manifest" --dest "$MSVC_SDK" --cache "$MSVC_SDK/cache"
+          printf '%s\n' "$cache_key0" "$cache_key1" "$cache_key2" "$cache_key3" "$cache_manifest"
+          "$MSVC_DIR/vsdownload.py" --accept-license --manifest "$cache_manifest" --dest "$MSVC_SDK" --cache "$MSVC_SDK/cache"
           "$MSVC_DIR/install.sh" "$MSVC_SDK"
         depends_native_Linux: |
           sudo apt-get install -y clang clang-21 lld lld-21 llvm-21-linker-tools
@@ -261,10 +272,14 @@ jobs:
 
     - name: Install dependencies
       env:
-        cache_key: ${{ steps.cache.outputs.key }}
+        cache_key0: ${{ steps.cache.outputs.key0 }}
+        cache_key1: ${{ steps.cache.outputs.key1 }}
+        cache_key2: ${{ steps.cache.outputs.key2 }}
+        cache_key3: ${{ steps.cache.outputs.key3 }}
         cache_manifest: ${{ steps.cache.outputs.manifest }}
         MSVC_DIR: ${{ steps.cfg.outputs.msvc_dir }}
         MSVC_SDK: ${{ steps.cfg.outputs.msvc_sdk }}
+        SDK_PATH: ${{ steps.cfg.outputs.sdk_path }}
       run: |
         ${{ steps.f.outputs.depends }}
 
