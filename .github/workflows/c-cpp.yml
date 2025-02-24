@@ -142,39 +142,39 @@ jobs:
         type: ${{ steps.cfg.outputs.build_type }}
         on_for: |
           f="${x}_on_${{ runner.os }}_for_${{ matrix.os }}"; y="${!f}"; [[ -z "${y// /}" ]] || {
-            func="$func"$'\n'"$y;"
+            fn="$fn"$'\n'"$y"
             continue
           }
       run: |
         plan() {
-          func="do_$1 {"
+          local fn="do_$1 {"
           local x f y
           for x in pre_$1 $1 post_$1; do
             f="${x}_on_${{ runner.os }}"
             y="${!f}"
             [[ -z "${y// /}" ]] || {
-              func="$func"$'\n'"$y;"
+              fn="$fn"$'\n'"$y"
             }
             ${{ steps.id.outputs.cross && env.on_for || '' }}
             f="${x}_${{ env.type }}_${{ matrix.os }}"
             y="${!f}"
             [[ -z "${y// /}" ]] || {
-              func="$func"$'\n'"$y;"
+              fn="$fn"$'\n'"$y"
               continue
             }
             f="${x}_${{ env.type }}"
             y="${!f}"
             [[ -z "${y// /}" ]] || {
-              func="$func"$'\n'"$y;"
+              fn="$fn"$'\n'"$y"
               continue
             }
             y="${!x}"
             [[ -z "${y// /}" ]] || {
-              func="$func"$'\n'"$y;"
+              fn="$fn"$'\n'"$y"
             }
           done
-          func="$func"$'\n'"}"
-          printf '===\n%s\n' "$func"
+          fn="$fn"$'\n''}'
+          printf -vfunc -- '%q' "$fn"
           export func
         }
 
@@ -184,7 +184,9 @@ jobs:
         #if (( BASH_VERSINFO == 3 )); then
         #  __fn=$(printf 'eval %q' "$__fn")
         #fi
-        printf '%q\n' "$func"
+        printf '%s\n' "$func"
+        eval "$func"
+        declare -f do_compile
 
     - name: Update system packages
       env:
