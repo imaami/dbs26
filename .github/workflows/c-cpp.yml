@@ -138,19 +138,19 @@ jobs:
         pre_compile: |
           mkdir -p "${{ steps.cfg.outputs.build_dir }}"
         compile_native_Linux: |
-          "$CC" ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
+          "${{ steps.cfg.outputs.cc }}" ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
           strip --strip-all "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}"
         compile_native_macOS: |
-          "$CC" -arch arm64 ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}-arm64" ${{ steps.cfg.outputs.src }}
-          "$CC" -arch x86_64 ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}-x86_64" ${{ steps.cfg.outputs.src }}
+          "${{ steps.cfg.outputs.cc }}" -arch arm64 ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}-arm64" ${{ steps.cfg.outputs.src }}
+          "${{ steps.cfg.outputs.cc }}" -arch x86_64 ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}-x86_64" ${{ steps.cfg.outputs.src }}
           lipo -create -output "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}" "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}-arm64" "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}-x86_64"
         compile_cross_Windows: |
           BIN="$MSVC_BIN" . "$MSVC_DIR/msvcenv-native.sh"
           export PATH="$MSVC_BIN:$PATH"
-          "$CC" --target=$TARGET_TRIPLE ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
-          "$CL" /nologo /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe_cl }}" ${{ steps.cfg.outputs.src }}
+          "${{ steps.cfg.outputs.cc }}" --target=$TARGET_TRIPLE ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
+          "${{ steps.cfg.outputs.cl }}" /nologo /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe_cl }}" ${{ steps.cfg.outputs.src }}
         post_compile_on_Linux_for_Windows: |
-          "$CCL" -nologo /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe_ccl }}" -fuse-ld=lld ${{ steps.cfg.outputs.src }}
+          "${{ steps.cfg.outputs.ccl }}" -nologo /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe_ccl }}" -fuse-ld=lld ${{ steps.cfg.outputs.src }}
 
         pre_validate_on_macOS_for_Windows: |
           try() {
@@ -275,9 +275,6 @@ jobs:
     - name: Compile
       working-directory: ${{ github.workspace }}/src
       env:
-        CC: ${{ steps.cfg.outputs.cc }}
-        CL: ${{ steps.cfg.outputs.cl }}
-        CCL: ${{ steps.cfg.outputs.ccl }}
         MSVC_DIR: ${{ steps.cfg.outputs.msvc_dir }}
         MSVC_BIN: ${{ steps.cfg.outputs.msvc_bin }}
       run: |
