@@ -182,47 +182,46 @@ jobs:
         type: ${{ steps.cfg.outputs.build_type }}
         on_for: |
           f="${x}_on_${{ runner.os }}_for_${{ matrix.os }}"; y="${!f}"; [[ -z "${y// /}" ]] || {
-            fn="$fn"$'\n'"$y"
+            printf -vfn -- '%s\n%q' "$fn" "$y"
             continue
           }
       run: |
         plan() {
-          local fn="do_$1 ()"$'\n{'
-          local x f y
+          local fn="do_$1 ()"$'\n{' x f y
           for x in pre_$1 $1 post_$1; do
             f="${x}_on_${{ runner.os }}"
             y="${!f}"
             [[ -z "${y// /}" ]] || {
-              fn="$fn"$'\n'"$y"
+              printf -vfn -- '%s\n%q' "$fn" "$y"
             }
             ${{ steps.id.outputs.cross && env.on_for || '' }}
             f="${x}_${{ env.type }}_${{ matrix.os }}"
             y="${!f}"
             [[ -z "${y// /}" ]] || {
-              fn="$fn"$'\n'"$y"
+              printf -vfn -- '%s\n%q' "$fn" "$y"
               continue
             }
             f="${x}_${{ env.type }}"
             y="${!f}"
             [[ -z "${y// /}" ]] || {
-              fn="$fn"$'\n'"$y"
+              printf -vfn -- '%s\n%q' "$fn" "$y"
               continue
             }
             y="${!x}"
             [[ -z "${y// /}" ]] || {
-              fn="$fn"$'\n'"$y"
+              printf -vfn -- '%s\n%q' "$fn" "$y"
             }
           done
-          fn="$fn"$'\n}'
-          printf -vfunc -- '%s\n' "$fn"
+          printf -vfunc -- '%s\n}\n' "$fn"
           export func
         }
 
         for s in update depends compile validate; do
           plan $s
           eval "$func"
+          printf 'BEFORE:\n%s\n' "$func"
           func="$(declare -f do_$s)"
-          printf '%s\n' "$func"
+          printf 'AFTER:\n%s\n' "$func"
           if (( BASH_VERSINFO == 3 )); then
             func=$(printf 'eval %q' "$func")
           fi
