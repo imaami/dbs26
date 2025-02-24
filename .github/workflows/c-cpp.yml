@@ -51,7 +51,7 @@ jobs:
         if (( BASH_VERSINFO == 3 )); then
           __fn=$(printf 'eval %q' "$__fn")
         fi
-        for s in update depends compile validate; do
+        for s in update depends validate; do
           fn="${__fn/__step/do_$s}"
           {
             echo "$s<<EOF"
@@ -125,6 +125,8 @@ jobs:
     - name: Plan build
       id: f
       env:
+        pre_compile: |
+          mkdir -p "${{ steps.cfg.outputs.build_dir }}"
         compile_native_Linux: |
           "${{ steps.cfg.outputs.cc }}" ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
           strip --strip-all "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}"
@@ -179,14 +181,17 @@ jobs:
         }
 
         plan compile
-        #eval "$func"
-        #__fn="$(declare -f do_compile)"
-        #if (( BASH_VERSINFO == 3 )); then
-        #  __fn=$(printf 'eval %q' "$__fn")
-        #fi
-        printf '%s\n' "$func"
         eval "$func"
-        declare -f do_compile
+        func="$(declare -f do_compile)"
+        if (( BASH_VERSINFO == 3 )); then
+          func=$(printf 'eval %q' "$func")
+        fi
+        {
+          echo 'compile<<EOF'
+          echo "$func"
+          echo 'do_compile'
+          echo 'EOF'
+        } >> "$GITHUB_OUTPUT"
 
     - name: Update system packages
       env:
@@ -265,25 +270,8 @@ jobs:
 
     - name: Compile
       working-directory: ${{ github.workspace }}/src
-      env:
-        build_dir: ${{ steps.cfg.outputs.build_dir }}
-        compile_native_Linux: |
-          "${{ steps.cfg.outputs.cc }}" ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
-          strip --strip-all "$build_dir/${{ steps.cfg.outputs.exe }}"
-        compile_native_macOS: |
-          "${{ steps.cfg.outputs.cc }}" -arch arm64 ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}-arm64" ${{ steps.cfg.outputs.src }}
-          "${{ steps.cfg.outputs.cc }}" -arch x86_64 ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}-x86_64" ${{ steps.cfg.outputs.src }}
-          lipo -create -output "$build_dir/${{ steps.cfg.outputs.exe }}" "$build_dir/${{ steps.cfg.outputs.exe }}-arm64" "$build_dir/${{ steps.cfg.outputs.exe }}-x86_64"
-        compile_cross_Windows: |
-          BIN="${{ steps.cfg.outputs.msvc_bin }}" . "${{ steps.cfg.outputs.msvc_dir }}/msvcenv-native.sh"
-          export PATH="${{ steps.cfg.outputs.msvc_bin }}:$PATH"
-          "${{ steps.cfg.outputs.cc }}" --target=$TARGET_TRIPLE ${{ steps.cfg.outputs.cflags }} -o "$build_dir/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
-          "${{ steps.cfg.outputs.cl }}" /nologo /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "$build_dir/${{ steps.cfg.outputs.exe_cl }}" ${{ steps.cfg.outputs.src }}
-        post_compile_on_Linux_for_Windows: |
-          "${{ steps.cfg.outputs.ccl }}" -nologo /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "$build_dir/${{ steps.cfg.outputs.exe_ccl }}" -fuse-ld=lld ${{ steps.cfg.outputs.src }}
       run: |
-        mkdir -p "$build_dir"
-        ${{ steps.id.outputs.compile }}
+        ${{ steps.f.outputs.compile }}
 
     - name: Package
       uses: actions/upload-artifact@v4
