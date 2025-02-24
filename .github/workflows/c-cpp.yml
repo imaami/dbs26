@@ -215,17 +215,18 @@ jobs:
           printf -vfn -- '%s\n}\n' "$fn"
           unset -f "do_$1"
           eval "$fn"
-          printf -vfn -- '%s\n%s\n' "$(declare -f "do_$1")" "do_$1"
+          printf -vfn -- '%s\n' "$(declare -f "do_$1")"
           unset -f "do_$1"
-          printf '%s' "$fn" | sed -E $'s/^/\| \033['"$2"'m/;s/$/\033[m/'
+          printf '%s' "$fn" | sed -E $'s/^/\| \033[1;3'$((RANDOM%5+2))$'m/;s/$/\033[m/'
+          printf -vfn -- '%s%s\n' "$fn" "do_$1"
           printf -vfn -- 'eval %q' "$fn"
           printf '%s<<EOF\neval %q\nEOF\n' "$1" "$fn" >> "$GITHUB_OUTPUT"
         }
 
-        color=0
-        for s in update depends compile validate; do
-          plan $s "1;$((32 + color++))"
-        done
+        plan update
+        plan depends
+        plan compile
+        plan validate
 
     - name: Update system packages
       run: |
