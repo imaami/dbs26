@@ -80,9 +80,10 @@ jobs:
         path: ${{ github.workspace }}/msvc-wine
         ref: master
 
-    - name: Set build params
+    - name: Configure build
       id: cfg
       env:
+        build_type: ${{ steps.id.outputs.cross }}${{ steps.id.outputs.native }}
         cc: ${{ steps.id.outputs.on_macOS && 'clang' || 'clang-21' }}
         cl: ${{ steps.id.outputs.for_Windows && 'cl' || '' }}
         ccl: ${{ steps.id.outputs.on_Linux_for_Windows && 'clang-cl-21' || '' }}
@@ -116,9 +117,73 @@ jobs:
         artifacts="$artifacts${exe_cl:+ $build_dir/$exe_cl}"
         artifacts="$artifacts${exe_ccl:+ $build_dir/$exe_ccl}"
         printf "%s\n" \
+               artifacts="$artifacts" \
                build_dir="$build_dir" \
-               artifacts="$artifacts" >> "$GITHUB_OUTPUT"
+               build_type="${{ env.build_type }}" >> "$GITHUB_OUTPUT"
 
+
+    - name: Plan build
+      id: f
+      env:
+        compile_native_Linux: |
+          "${{ steps.cfg.outputs.cc }}" ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
+          strip --strip-all "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}"
+        compile_native_macOS: |
+          "${{ steps.cfg.outputs.cc }}" -arch arm64 ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}-arm64" ${{ steps.cfg.outputs.src }}
+          "${{ steps.cfg.outputs.cc }}" -arch x86_64 ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}-x86_64" ${{ steps.cfg.outputs.src }}
+          lipo -create -output "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}" "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}-arm64" "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}-x86_64"
+        compile_cross_Windows: |
+          BIN="${{ steps.cfg.outputs.msvc_bin }}" . "${{ steps.cfg.outputs.msvc_dir }}/msvcenv-native.sh"
+          export PATH="${{ steps.cfg.outputs.msvc_bin }}:$PATH"
+          "${{ steps.cfg.outputs.cc }}" --target=$TARGET_TRIPLE ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
+          "${{ steps.cfg.outputs.cl }}" /nologo /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe_cl }}" ${{ steps.cfg.outputs.src }}
+        post_compile_on_Linux_for_Windows: |
+          "${{ steps.cfg.outputs.ccl }}" -nologo /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe_ccl }}" -fuse-ld=lld ${{ steps.cfg.outputs.src }}
+        type: ${{ steps.cfg.outputs.build_type }}
+        on_for: |
+          f="${x}_on_${{ runner.os }}_for_${{ matrix.os }}"; y="${!f}"; [[ -z "${y// /}" ]] || {
+            func="$func"$'\n'"$y"
+            continue
+          }
+      run: |
+        plan() {
+          declare -x func="do_$1 {"
+          local x f y
+          for x in pre_$1 $1 post_$1; do
+            f="${x}_on_${{ runner.os }}"
+            y="${!f}"
+            [[ -z "${y// /}" ]] || {
+              func="$func"$'\n'"$y"
+            }
+            ${{ steps.id.outputs.cross && env.on_for || '' }}
+            f="${x}_${{ env.type }}_${{ matrix.os }}"
+            y="${!f}"
+            [[ -z "${y// /}" ]] || {
+              func="$func"$'\n'"$y"
+              continue
+            }
+            f="${x}_${{ env.type }}"
+            y="${!f}"
+            [[ -z "${y// /}" ]] || {
+              func="$func"$'\n'"$y"
+              continue
+            }
+            y="${!x}"
+            [[ -z "${y// /}" ]] || {
+              func="$func"$'\n'"$y"
+            }
+          done
+          func="$func"$'\n''}'
+          printf '%s\n' "$func"
+        }
+
+        plan compile
+        eval "$func"
+        __fn="$(declare -f do_compile)"
+        if (( BASH_VERSINFO == 3 )); then
+          __fn=$(printf 'eval %q' "$__fn")
+        fi
+        printf '%s\n' "$__fn"
 
     - name: Update system packages
       env:
