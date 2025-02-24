@@ -231,7 +231,7 @@ jobs:
             }
           done
           (( ${#fn} )) || {
-            echo "do_$s=# NOP" >> "$GITHUB_OUTPUT"
+            echo "do_$1=# NOP" >> "$GITHUB_OUTPUT"
             return
           }
           printf -vfn -- 'do_%s() {%s\n}\n' "$fn"
