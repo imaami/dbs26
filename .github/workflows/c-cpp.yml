@@ -282,10 +282,12 @@ jobs:
 
     - name: Package
       uses: actions/upload-artifact@v4
+      env:
+        ARTIFACTS: ${{ steps.cfg.outputs.artifacts }}
       with:
         name: ${{ steps.cfg.outputs.pkg }}
         path: |
-          ${{ steps.cfg.outputs.artifacts }}
+          ${{ env.ARTIFACTS }}
 
     - name: Validate
       working-directory: ${{ steps.cfg.outputs.build_dir }}
