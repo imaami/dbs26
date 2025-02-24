@@ -242,24 +242,8 @@ jobs:
       env:
         msvc_dir: ${{ steps.cfg.outputs.msvc_dir }}
         msvc_sdk: ${{ steps.cfg.outputs.msvc_sdk }}
-        pre_depends_on_Linux: |
-          ${{ steps.id.outputs.on_Linux && 'sudo apt-get install -y clang clang-21 lld lld-21 llvm-21-linker-tools' || '' }}
-        pre_depends_on_Linux_for_Windows: |
-          ${{ steps.id.outputs.on_Linux_for_Windows && 'sudo apt-get install -y ca-certificates msitools python3 winbind winehq-stable' || '' }}
-        pre_depends_on_macOS_for_Windows: |
-          ${{ steps.id.outputs.on_macOS_for_Windows && 'brew install msitools wine-stable' || '' }}
-        depends_cross_Windows: |
-          ${{ steps.id.outputs.cross_Windows && 'mkdir -p "$msvc_sdk"' || '' }}
-          ${{ steps.id.outputs.cross_Windows && '"$msvc_dir/vsdownload.py" --accept-license --dest "$msvc_sdk"' || '' }}
-          ${{ steps.id.outputs.cross_Windows && '"$msvc_dir/install.sh" "$msvc_sdk"' || '' }}
-        post_depends_on_macOS: |
-          ${{ steps.id.outputs.on_macOS && 'brew install coreutils gnu-sed' || '' }}
-          ${{ steps.id.outputs.on_macOS && 'echo "$(brew --prefix)/opt/coreutils/libexec/gnubin:$(brew --prefix)/opt/gnu-sed/libexec/gnubin" >> "$GITHUB_PATH"' || '' }}
-        post_depends_on_macOS_for_Windows: |
-          ${{ steps.id.outputs.on_macOS_for_Windows && 'brew install llvm lld binutils' || '' }}
-          ${{ steps.id.outputs.on_macOS_for_Windows && 'echo "$(brew --prefix)/opt/llvm/bin:$(brew --prefix)/opt/binutils/bin" >> "$GITHUB_PATH"' || '' }}
       run: |
-        ${{ steps.id.outputs.depends }}
+        ${{ steps.f.outputs.depends }}
 
     - name: Introspect compilers
       run: |
