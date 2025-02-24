@@ -187,7 +187,7 @@ jobs:
           }
       run: |
         plan() {
-          local fn="do_$1() {' x f y
+          local fn="do_$1() {" x f y
           for x in pre_$1 $1 post_$1; do
             f="${x}_on_${{ runner.os }}"
             y="${!f}"
