@@ -88,11 +88,10 @@ jobs:
         ' || '' }}
 
         build_dir="$GITHUB_WORKSPACE/build"
-        artifacts="$build_dir/$exe"
-        artifacts="$artifacts${exe_cl:+ $build_dir/$exe_cl}"
-        artifacts="$artifacts${exe_ccl:+ $build_dir/$exe_ccl}"
         printf "%s\n" \
-               artifacts="$artifacts" \
+               abs_exe="$build_dir/$exe" \
+               ${{ env.CL && 'abs_exe_cl="$build_dir/$exe_cl"' || ''}} \
+               ${{ env.CCL && 'abs_exe_ccl="$build_dir/$exe_ccl"' || ''}} \
                build_dir="$build_dir" \
                build_type="${{ env.build_type }}" >> "$GITHUB_OUTPUT"
 
@@ -283,12 +282,12 @@ jobs:
 
     - name: Package
       uses: actions/upload-artifact@v4
-      env:
-        ARTIFACTS: ${{ steps.cfg.outputs.artifacts }}
       with:
         name: ${{ steps.cfg.outputs.pkg }}
         path: |
-          ${{ env.ARTIFACTS }}
+          ${{ steps.cfg.outputs.abs_exe }}
+          ${{ steps.cfg.outputs.abs_exe_cl }}
+          ${{ steps.cfg.outputs.abs_exe_ccl }}
 
     - name: Validate
       working-directory: ${{ steps.cfg.outputs.build_dir }}
