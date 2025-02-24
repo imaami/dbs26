@@ -205,7 +205,7 @@ jobs:
           }
       run: |
         plan() {
-          local fn="do_$1() {" x f y
+          local fn x f y
           for x in pre_$1 $1 post_$1; do
             f="${x}_on_${{ runner.os }}"
             y="${!f}"
@@ -230,7 +230,11 @@ jobs:
               printf -vfn -- '%s\n%s' "$fn" "$y"
             }
           done
-          printf -vfn -- '%s\n}\n' "$fn"
+          (( ${#fn} )) || {
+            echo "do_$s=# NOP" >> "$GITHUB_OUTPUT"
+            return
+          }
+          printf -vfn -- 'do_%s() {%s\n}\n' "$fn"
           unset -f "do_$1"
           eval "$fn"
           printf -vfn -- '%s\n' "$(declare -f "do_$1")"
