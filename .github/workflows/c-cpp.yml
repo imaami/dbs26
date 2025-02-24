@@ -230,10 +230,7 @@ jobs:
               printf -vfn -- '%s\n%s' "$fn" "$y"
             }
           done
-          (( ${#fn} )) || {
-            echo "do_$1=# NOP" >> "$GITHUB_OUTPUT"
-            return
-          }
+          (( ${#fn} )) || return
           printf -vfn -- 'do_%s() {%s\n}\n' "$1" "$fn"
           unset -f "do_$1"
           eval "$fn"
