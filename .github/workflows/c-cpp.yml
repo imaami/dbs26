@@ -35,32 +35,7 @@ jobs:
         on_: ${{ matrix.os != runner.os && 'on_' || '' }}${{ matrix.os != runner.os && runner.os || '' }}
         _on_: ${{ matrix.os != runner.os && '=on_' || '' }}${{ matrix.os != runner.os && runner.os || '' }}
         type: ${{ matrix.os == runner.os && 'native' || 'cross' }}
-        on_for: f="${x}_on_${{ runner.os }}_for_${{ matrix.os }}"; y="${!f}"; [[ -z "${y// /}" ]] || { echo "$y"; continue; }
       run: |
-        __step() {
-          local x f y
-          for x in pre_$1 $1 post_$1; do
-            f="${x}_on_${{ runner.os }}"; y="${!f}"; [[ -z "${y// /}" ]] || echo "$y"
-            ${{ matrix.os != runner.os && env.on_for || '' }}
-            f="${x}_${{ env.type }}_${{ matrix.os }}"; y="${!f}"; [[ -z "${y// /}" ]] || { echo "$y"; continue; }
-            f="${x}_${{ env.type }}"; y="${!f}"; [[ -z "${y// /}" ]] || { echo "$y"; continue; }
-            y="${!x}"; [[ -z "${y// /}" ]] || echo "$y"
-          done
-        }
-        __fn="$(declare -f __step)"
-        if (( BASH_VERSINFO == 3 )); then
-          __fn=$(printf 'eval %q' "$__fn")
-        fi
-        for s in update validate; do
-          fn="${__fn/__step/do_$s}"
-          {
-            echo "$s<<EOF"
-            echo "${fn//\$1/$s}"
-            echo "eval \"\$(do_$s)\""
-            echo 'EOF'
-          } >> "$GITHUB_OUTPUT"
-        done
-
         printf '%s\n' \
                "on_${{ runner.os }}=on_${{ runner.os }}" \
                "for_${{ matrix.os }}=for_${{ matrix.os }}" \
@@ -121,10 +96,28 @@ jobs:
                build_dir="$build_dir" \
                build_type="${{ env.build_type }}" >> "$GITHUB_OUTPUT"
 
-
     - name: Plan build
       id: f
       env:
+        pre_update_on_Linux_for_Windows: |
+          sudo mkdir -pm755 /etc/apt/keyrings
+          wget -qO- https://dl.winehq.org/wine-builds/winehq.key | \
+          sudo gpg --dearmor -o /etc/apt/keyrings/winehq-archive.key -
+          wget -qO- https://dl.winehq.org/wine-builds/ubuntu/dists/noble/winehq-noble.sources | \
+          sudo tee /etc/apt/sources.list.d/winehq.sources > /dev/null
+          sudo dpkg --add-architecture i386
+        update_on_Linux: |
+          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble main" | \
+          sudo tee /etc/apt/sources.list.d/apt.llvm.org.list > /dev/null
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | \
+          sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc > /dev/null
+          sudo apt-get update
+          sudo apt-get upgrade -y
+        update_on_macOS: |
+          brew update
+          brew upgrade
+          brew install bash
+
         pre_depends_on_Linux: |
           sudo apt-get install -y clang clang-21 lld lld-21 llvm-21-linker-tools
         pre_depends_on_Linux_for_Windows: |
@@ -158,6 +151,33 @@ jobs:
           "${{ steps.cfg.outputs.cl }}" /nologo /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe_cl }}" ${{ steps.cfg.outputs.src }}
         post_compile_on_Linux_for_Windows: |
           "${{ steps.cfg.outputs.ccl }}" -nologo /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe_ccl }}" -fuse-ld=lld ${{ steps.cfg.outputs.src }}
+
+        pre_validate_on_macOS_for_Windows: |
+          try() {
+            WINEDEBUG=-all wine "$@" -o -     | sha1sum       ; rm -f "$out"
+            WINEDEBUG=-all wine "$@" -o "$out"; sha1sum "$out"; rm -f "$out"
+          }
+        pre_validate_cross_Windows: |
+          try() {
+            WINEDEBUG=-all wine64 "$@" -o -     | sha1sum       ; rm -f "$out"
+            WINEDEBUG=-all wine64 "$@" -o "$out"; sha1sum "$out"; rm -f "$out"
+          }
+        pre_validate_native: |
+          try() {
+            "$@" -o -     | sha1sum       ; rm -f "$out"
+            "$@" -o "$out"; sha1sum "$out"; rm -f "$out"
+          }
+        validate_native_Linux: |
+          try ./${{ steps.cfg.outputs.exe }}
+        validate_native_macOS: |
+          try arch -arm64 ./${{ steps.cfg.outputs.exe }}
+          try arch -x86_64 ./${{ steps.cfg.outputs.exe }}
+        validate_cross_Windows: |
+          try ./${{ steps.cfg.outputs.exe }}
+          try ./${{ steps.cfg.outputs.exe_cl }}
+        post_validate_on_Linux_for_Windows: |
+          try ./${{ steps.cfg.outputs.exe_ccl }}
+
         type: ${{ steps.cfg.outputs.build_type }}
         on_for: |
           f="${x}_on_${{ runner.os }}_for_${{ matrix.os }}"; y="${!f}"; [[ -z "${y// /}" ]] || {
@@ -197,7 +217,7 @@ jobs:
           export func
         }
 
-        for s in depends compile; do
+        for s in update depends compile validate; do
           plan $s
           eval "$func"
           func="$(declare -f do_$s)"
@@ -214,29 +234,8 @@ jobs:
         done
 
     - name: Update system packages
-      env:
-        pre_update_on_Linux_for_Windows: |
-          ${{ steps.id.outputs.on_Linux_for_Windows && 'sudo mkdir -pm755 /etc/apt/keyrings
-          wget -qO- https://dl.winehq.org/wine-builds/winehq.key | \
-          sudo gpg --dearmor -o /etc/apt/keyrings/winehq-archive.key -
-          wget -qO- https://dl.winehq.org/wine-builds/ubuntu/dists/noble/winehq-noble.sources | \
-          sudo tee /etc/apt/sources.list.d/winehq.sources > /dev/null
-          sudo dpkg --add-architecture i386' || '' }}
-        update_on_Linux: |
-          ${{ steps.id.outputs.on_Linux && '
-          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble main" | \
-          sudo tee /etc/apt/sources.list.d/apt.llvm.org.list > /dev/null
-          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | \
-          sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc > /dev/null
-          sudo apt-get update
-          sudo apt-get upgrade -y' || '' }}
-        update_on_macOS: |
-          ${{ steps.id.outputs.on_macOS && 'set +e
-          brew update
-          brew upgrade
-          brew install bash' || '' }}
       run: |
-        ${{ steps.id.outputs.update }}
+        ${{ steps.f.outputs.update }}
 
     - name: Install dependencies
       env:
@@ -284,37 +283,10 @@ jobs:
         name: ${{ steps.cfg.outputs.pkg }}
         path: |
           ${{ steps.cfg.outputs.artifacts }}
-          LICENSE
-          README.md
 
     - name: Validate
       working-directory: ${{ steps.cfg.outputs.build_dir }}
       env:
         out: ${{ runner.temp }}/test.bin
-        pre_validate_on_macOS_for_Windows: |
-          ${{ steps.id.outputs.on_macOS_for_Windows && 'try() {
-            WINEDEBUG=-all wine "$@" -o -     | sha1sum       ; rm -f "$out"
-            WINEDEBUG=-all wine "$@" -o "$out"; sha1sum "$out"; rm -f "$out"
-          }' || '' }}
-        pre_validate_cross_Windows: |
-          ${{ steps.id.outputs.cross_Windows && 'try() {
-            WINEDEBUG=-all wine64 "$@" -o -     | sha1sum       ; rm -f "$out"
-            WINEDEBUG=-all wine64 "$@" -o "$out"; sha1sum "$out"; rm -f "$out"
-          }' || '' }}
-        pre_validate_native: |
-          ${{ steps.id.outputs.native && 'try() {
-            "$@" -o -     | sha1sum       ; rm -f "$out"
-            "$@" -o "$out"; sha1sum "$out"; rm -f "$out"
-          }' || '' }}
-        validate_native_Linux: |
-          ${{ steps.id.outputs.native_Linux && 'try ./' || '' }}${{ steps.id.outputs.native_Linux && steps.cfg.outputs.exe || '' }}
-        validate_native_macOS: |
-          ${{ steps.id.outputs.native_macOS && 'try arch -arm64 ./' || '' }}${{ steps.id.outputs.native_macOS && steps.cfg.outputs.exe || '' }}
-          ${{ steps.id.outputs.native_macOS && 'try arch -x86_64 ./' || '' }}${{ steps.id.outputs.native_macOS && steps.cfg.outputs.exe || '' }}
-        validate_cross_Windows: |
-          ${{ steps.id.outputs.cross_Windows && 'try ./' || '' }}${{ steps.id.outputs.cross_Windows && steps.cfg.outputs.exe || '' }}
-          ${{ steps.id.outputs.cross_Windows && 'try ./' || '' }}${{ steps.id.outputs.cross_Windows && steps.cfg.outputs.exe_cl || '' }}
-        post_validate_on_Linux_for_Windows: |
-          ${{ steps.id.outputs.on_Linux_for_Windows && 'try ./' || '' }}${{ steps.id.outputs.on_Linux_for_Windows && steps.cfg.outputs.exe_ccl || '' }}
       run: |
-        ${{ steps.id.outputs.validate }}
+        ${{ steps.f.outputs.validate }}
