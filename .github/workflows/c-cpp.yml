@@ -217,7 +217,7 @@ jobs:
           eval "$fn"
           printf -vfn -- '%s\n%s\n' "$(declare -f "do_$1")" "do_$1"
           unset -f "do_$1"
-          printf '%s' "$fn" | sed -E $'s/^/\| \033["$2"'m/;s/$/\033[m/'
+          printf '%s' "$fn" | sed -E $'s/^/\| \033['"$2"'m/;s/$/\033[m/'
           printf -vfn -- 'eval %q' "$fn"
           printf '%s<<EOF\neval %q\nEOF\n' "$1" "$fn" >> "$GITHUB_OUTPUT"
         }
