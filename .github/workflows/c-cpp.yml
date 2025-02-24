@@ -153,19 +153,19 @@ jobs:
             f="${x}_on_${{ runner.os }}"
             y="${!f}"
             [[ -z "${y// /}" ]] || {
-              func="$func"$'\n'"$y"
+              func="$func"$'\n'"$y; "
             }
             ${{ steps.id.outputs.cross && env.on_for || '' }}
             f="${x}_${{ env.type }}_${{ matrix.os }}"
             y="${!f}"
             [[ -z "${y// /}" ]] || {
-              func="$func"$'\n'"$y"
+              func="$func"$'\n'"$y; "
               continue
             }
             f="${x}_${{ env.type }}"
             y="${!f}"
             [[ -z "${y// /}" ]] || {
-              func="$func"$'\n'"$y"
+              func="$func"$'\n'"$y; "
               continue
             }
             y="${!x}"
@@ -174,16 +174,16 @@ jobs:
             }
           done
           func="$func"$'\n''}'
-          printf '%s\n' "$func"
+          printf '===\n%s\n' "$func"
         }
 
         plan compile
-        eval "$func"
-        __fn="$(declare -f do_compile)"
-        if (( BASH_VERSINFO == 3 )); then
-          __fn=$(printf 'eval %q' "$__fn")
-        fi
-        printf '%s\n' "$__fn"
+        #eval "$func"
+        #__fn="$(declare -f do_compile)"
+        #if (( BASH_VERSINFO == 3 )); then
+        #  __fn=$(printf 'eval %q' "$__fn")
+        #fi
+        printf '%%q\n' "$func"
 
     - name: Update system packages
       env:
