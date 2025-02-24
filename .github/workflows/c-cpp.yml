@@ -59,32 +59,32 @@ jobs:
       id: cfg
       env:
         build_type: ${{ steps.id.outputs.cross }}${{ steps.id.outputs.native }}
-        cc: ${{ steps.id.outputs.on_macOS && 'clang' || 'clang-21' }}
-        cl: ${{ steps.id.outputs.for_Windows && 'cl' || '' }}
-        ccl: ${{ steps.id.outputs.on_Linux_for_Windows && 'clang-cl-21' || '' }}
+        CC: ${{ steps.id.outputs.on_macOS && 'clang' || 'clang-21' }}
+        CL: ${{ steps.id.outputs.for_Windows && 'cl' || '' }}
+        CCL: ${{ steps.id.outputs.on_Linux_for_Windows && 'clang-cl-21' || '' }}
         baseflags: -std=gnu2${{ steps.id.outputs.on_macOS && 'x' || '3' }} -flto=full -O3 -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1
         archflags: ${{ ! steps.id.outputs.for_macOS && ' -fuse-ld=lld' || '' }}${{ steps.id.outputs.for_Linux && ' -march=x86-64-v3 -mtune=znver3' || '' }}
         ext: ${{ steps.id.outputs.for_Windows && '.exe' || '' }}
       run: |
-        exe="dbs26-${{ env.cc }}${{ env.ext }}"
-        ${{ env.cl && 'exe_cl=dbs26-' || '' }}${{ env.cl }}${{ env.cl && env.ext || '' }}
-        ${{ env.ccl && 'exe_ccl=dbs26-' || '' }}${{ env.ccl }}${{ env.ccl && env.ext || '' }}
+        exe="dbs26-${{ env.CC }}${{ env.ext }}"
+        ${{ env.CL && 'exe_cl=dbs26-' || '' }}${{ env.CL }}${{ env.CL && env.ext || '' }}
+        ${{ env.CCL && 'exe_ccl=dbs26-' || '' }}${{ env.CCL }}${{ env.CCL && env.ext || '' }}
         printf '%s\n' \
-               cc=${{ env.cc }} ${{ env.cl && 'cl=' || '' }}${{ env.cl }} ${{ env.ccl && 'ccl=' || '' }}${{ env.ccl }} \
+               cc=${{ env.CC }} ${{ env.CL && 'cl=' || '' }}${{ env.CL }} ${{ env.CCL && 'ccl=' || '' }}${{ env.CCL }} \
                cflags="${{ env.baseflags }}${{ env.archflags }}" \
                exe="$exe" \
-               ${{ env.cl && 'exe_cl=$exe_cl' || '' }} \
-               ${{ env.ccl && 'exe_ccl=$exe_ccl' || '' }} \
+               ${{ env.CL && 'exe_cl=$exe_cl' || '' }} \
+               ${{ env.CCL && 'exe_ccl=$exe_ccl' || '' }} \
                pkg=dbs26-${{ steps.id.outputs.build }} \
                src="args.c dbs26.c" >> "$GITHUB_OUTPUT"
 
         ${{ steps.id.outputs.cross_Windows && '
-        msvc_dir="$GITHUB_WORKSPACE/msvc-wine"
-        msvc_sdk="$GITHUB_WORKSPACE/winsdk"
+        MSVC_DIR="$GITHUB_WORKSPACE/msvc-wine"
+        MSVC_SDK="$GITHUB_WORKSPACE/winsdk"
         printf "%s\n" \
-               msvc_dir="$msvc_dir" \
-               msvc_sdk="$msvc_sdk" \
-               msvc_bin="$msvc_sdk/bin/x64" >> "$GITHUB_OUTPUT"
+               msvc_dir="$MSVC_DIR" \
+               msvc_sdk="$MSVC_SDK" \
+               msvc_bin="$MSVC_SDK/bin/x64" >> "$GITHUB_OUTPUT"
         ' || '' }}
 
         build_dir="$GITHUB_WORKSPACE/build"
@@ -125,9 +125,9 @@ jobs:
         pre_depends_on_macOS_for_Windows: |
           brew install msitools wine-stable
         depends_cross_Windows: |
-          mkdir -p "$msvc_sdk"
-          "$msvc_dir/vsdownload.py" --accept-license --dest "$msvc_sdk"
-          "$msvc_dir/install.sh" "$msvc_sdk"
+          mkdir -p "$MSVC_SDK"
+          "$MSVC_DIR/vsdownload.py" --accept-license --dest "$MSVC_SDK"
+          "$MSVC_DIR/install.sh" "$MSVC_SDK"
         post_depends_on_macOS: |
           brew install coreutils gnu-sed
           echo "$(brew --prefix)/opt/coreutils/libexec/gnubin:$(brew --prefix)/opt/gnu-sed/libexec/gnubin" >> "$GITHUB_PATH"
@@ -138,19 +138,19 @@ jobs:
         pre_compile: |
           mkdir -p "${{ steps.cfg.outputs.build_dir }}"
         compile_native_Linux: |
-          "${{ steps.cfg.outputs.cc }}" ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
+          "$CC" ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
           strip --strip-all "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}"
         compile_native_macOS: |
-          "${{ steps.cfg.outputs.cc }}" -arch arm64 ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}-arm64" ${{ steps.cfg.outputs.src }}
-          "${{ steps.cfg.outputs.cc }}" -arch x86_64 ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}-x86_64" ${{ steps.cfg.outputs.src }}
+          "$CC" -arch arm64 ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}-arm64" ${{ steps.cfg.outputs.src }}
+          "$CC" -arch x86_64 ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}-x86_64" ${{ steps.cfg.outputs.src }}
           lipo -create -output "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}" "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}-arm64" "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}-x86_64"
         compile_cross_Windows: |
-          BIN="${{ steps.cfg.outputs.msvc_bin }}" . "${{ steps.cfg.outputs.msvc_dir }}/msvcenv-native.sh"
-          export PATH="${{ steps.cfg.outputs.msvc_bin }}:$PATH"
-          "${{ steps.cfg.outputs.cc }}" --target=$TARGET_TRIPLE ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
-          "${{ steps.cfg.outputs.cl }}" /nologo /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe_cl }}" ${{ steps.cfg.outputs.src }}
+          BIN="$MSVC_BIN" . "$MSVC_DIR/msvcenv-native.sh"
+          export PATH="$MSVC_BIN:$PATH"
+          "$CC" --target=$TARGET_TRIPLE ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
+          "$CL" /nologo /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe_cl }}" ${{ steps.cfg.outputs.src }}
         post_compile_on_Linux_for_Windows: |
-          "${{ steps.cfg.outputs.ccl }}" -nologo /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe_ccl }}" -fuse-ld=lld ${{ steps.cfg.outputs.src }}
+          "$CCL" -nologo /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe_ccl }}" -fuse-ld=lld ${{ steps.cfg.outputs.src }}
 
         pre_validate_on_macOS_for_Windows: |
           try() {
@@ -239,8 +239,8 @@ jobs:
 
     - name: Install dependencies
       env:
-        msvc_dir: ${{ steps.cfg.outputs.msvc_dir }}
-        msvc_sdk: ${{ steps.cfg.outputs.msvc_sdk }}
+        MSVC_DIR: ${{ steps.cfg.outputs.msvc_dir }}
+        MSVC_SDK: ${{ steps.cfg.outputs.msvc_sdk }}
       run: |
         ${{ steps.f.outputs.depends }}
 
@@ -274,6 +274,12 @@ jobs:
 
     - name: Compile
       working-directory: ${{ github.workspace }}/src
+      env:
+        CC: ${{ steps.cfg.outputs.cc }}
+        CL: ${{ steps.cfg.outputs.cl }}
+        CCL: ${{ steps.cfg.outputs.ccl }}
+        MSVC_DIR: ${{ steps.cfg.outputs.msvc_dir }}
+        MSVC_BIN: ${{ steps.cfg.outputs.msvc_bin }}
       run: |
         ${{ steps.f.outputs.compile }}
 
