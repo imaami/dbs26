@@ -182,55 +182,48 @@ jobs:
         type: ${{ steps.cfg.outputs.build_type }}
         on_for: |
           f="${x}_on_${{ runner.os }}_for_${{ matrix.os }}"; y="${!f}"; [[ -z "${y// /}" ]] || {
-            printf -vfn -- '%s\n%q' "$fn" "$y"
+            printf -vfn -- '%s\n%s' "$fn" "$y"
             continue
           }
       run: |
         plan() {
-          local fn="do_$1 ()"$'\n{' x f y
+          local fn="do_$1() {' x f y
           for x in pre_$1 $1 post_$1; do
             f="${x}_on_${{ runner.os }}"
             y="${!f}"
             [[ -z "${y// /}" ]] || {
-              printf -vfn -- '%s\n%q' "$fn" "$y"
+              printf -vfn -- '%s\n%s' "$fn" "$y"
             }
             ${{ steps.id.outputs.cross && env.on_for || '' }}
             f="${x}_${{ env.type }}_${{ matrix.os }}"
             y="${!f}"
             [[ -z "${y// /}" ]] || {
-              printf -vfn -- '%s\n%q' "$fn" "$y"
+              printf -vfn -- '%s\n%s' "$fn" "$y"
               continue
             }
             f="${x}_${{ env.type }}"
             y="${!f}"
             [[ -z "${y// /}" ]] || {
-              printf -vfn -- '%s\n%q' "$fn" "$y"
+              printf -vfn -- '%s\n%s' "$fn" "$y"
               continue
             }
             y="${!x}"
             [[ -z "${y// /}" ]] || {
-              printf -vfn -- '%s\n%q' "$fn" "$y"
+              printf -vfn -- '%s\n%s' "$fn" "$y"
             }
           done
-          printf -vfunc -- '%s\n}\n' "$fn"
-          export func
+          printf -vfn -- '%s\n}\n' "$fn"
+          unset -f "do_$1"
+          eval "$fn"
+          printf -vfn -- '%s\n%s\n' "$(declare -f "do_$1")" "do_$1"
+          unset -f "do_$1"
+          printf '%s' "$fn" | sed -E $'s/^/\| \033[36m/;s/$/\033[m/'
+          printf -vfn -- 'eval %q' "$fn"
+          printf '%s<<EOF\neval %q\nEOF\n' "$1" "$fn" >> "$GITHUB_OUTPUT"
         }
 
         for s in update depends compile validate; do
           plan $s
-          eval "$func"
-          printf 'BEFORE:\n%s\n' "$func"
-          func="$(declare -f do_$s)"
-          printf 'AFTER:\n%s\n' "$func"
-          if (( BASH_VERSINFO == 3 )); then
-            func=$(printf 'eval %q' "$func")
-          fi
-          {
-            echo "$s<<EOF"
-            echo "$func"
-            echo "do_$s"
-            echo 'EOF'
-          } >> "$GITHUB_OUTPUT"
         done
 
     - name: Update system packages
@@ -277,10 +270,9 @@ jobs:
       env:
         MSVC_DIR: ${{ steps.cfg.outputs.msvc_dir }}
         MSVC_BIN: ${{ steps.cfg.outputs.msvc_bin }}
-        compile: ${{ steps.f.outputs.compile }}
         CL: ${{ steps.cfg.outputs.cl }}
       run: |
-        eval "$compile"
+        ${{ steps.f.outputs.compile }}
 
     - name: Package
       uses: actions/upload-artifact@v4
