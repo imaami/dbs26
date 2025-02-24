@@ -234,7 +234,7 @@ jobs:
             echo "do_$1=# NOP" >> "$GITHUB_OUTPUT"
             return
           }
-          printf -vfn -- 'do_%s() {%s\n}\n' "$fn"
+          printf -vfn -- 'do_%s() {%s\n}\n' "$1" "$fn"
           unset -f "do_$1"
           eval "$fn"
           printf -vfn -- '%s\n' "$(declare -f "do_$1")"
