@@ -113,23 +113,38 @@ jobs:
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | \
           sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc > /dev/null
           sudo apt-get update
+        post_update_native_Linux: |
           sudo apt-get upgrade -y
-        update_on_macOS: |
+
+        pre_update_on_macOS: |
           brew update
+        update_native_macOS: |
           brew upgrade
+        post_update_on_macOS: |
           brew install bash
 
-        pre_depends_on_Linux: |
-          sudo apt-get install -y clang clang-21 lld lld-21 llvm-21-linker-tools
-        pre_depends_on_Linux_for_Windows: |
-          sudo apt-get install -y ca-certificates msitools python3 winbind winehq-stable
-        pre_depends_on_macOS_for_Windows: |
+        pre_cache_on_Linux_for_Windows: |
+          sudo apt-get install -y clang clang-21 lld lld-21 llvm-21-linker-tools ca-certificates msitools python3 winbind winehq-stable
+        pre_cache_on_macOS_for_Windows: |
           brew install msitools wine-stable
+        cache_cross_Windows: |
+          mkdir -p "$MSVC_SDK/cache"
+          "$MSVC_DIR/vsdownload.py" --accept-license --print-version --save-manifest || true
+          manifest=$(ls -1tr | grep '\.manifest$' | tail -1)
+          "$MSVC_DIR/vsdownload.py" --accept-license --manifest "$manifest" --print-selection > "selection.txt"
+          echo "key=msvc-${manifest%\.manifest}-$(sha1sum selection.txt | cut -c1-16)" >> "$GITHUB_OUTPUT"
+          mv "$manifest" selection.txt "$MSVC_SDK/"
+
         depends_cross_Windows: |
-          mkdir -p "$MSVC_SDK"
-          "$MSVC_DIR/vsdownload.py" --accept-license --dest "$MSVC_SDK"
+          echo "MSVC SDK cache key: ${{ steps.cache.outputs.key }}"
+          "$MSVC_DIR/vsdownload.py" --accept-license --manifest "$MSVC_SDK/$manifest" --dest "$MSVC_SDK" --cache "$MSVC_SDK/cache"
           "$MSVC_DIR/install.sh" "$MSVC_SDK"
-        post_depends_on_macOS: |
+        depends_native_Linux: |
+          sudo apt-get install -y clang clang-21 lld lld-21 llvm-21-linker-tools
+
+        pre_depends_on_macOS_for_Windows: |
+          brew upgrade
+        depends_on_macOS: |
           brew install coreutils gnu-sed
           echo "$(brew --prefix)/opt/coreutils/libexec/gnubin:$(brew --prefix)/opt/gnu-sed/libexec/gnubin" >> "$GITHUB_PATH"
         post_depends_on_macOS_for_Windows: |
@@ -225,13 +240,22 @@ jobs:
         }
 
         plan update   '1;35'
+        plan cache    '1;36'
         plan depends  '1;34'
         plan compile  '1;33'
-        plan validate '1;36'
+        plan validate '1;32'
 
-    - name: Update system packages
+    - name: Update system
       run: |
         ${{ steps.f.outputs.update }}
+
+    - name: Prepare cache
+      id: cache
+      env:
+        MSVC_DIR: ${{ steps.cfg.outputs.msvc_dir }}
+        MSVC_SDK: ${{ steps.cfg.outputs.msvc_sdk }}
+      run: |
+        ${{ steps.f.outputs.cache }}
 
     - name: Install dependencies
       env:
