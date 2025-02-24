@@ -127,14 +127,14 @@ jobs:
           wget -qO- https://dl.winehq.org/wine-builds/winehq.key | \
           sudo gpg --dearmor -o /etc/apt/keyrings/winehq-archive.key -
           wget -qO- https://dl.winehq.org/wine-builds/ubuntu/dists/noble/winehq-noble.sources | \
-          sudo tee /etc/apt/sources.list.d/winehq.sources
+          sudo tee /etc/apt/sources.list.d/winehq.sources > /dev/null
           sudo dpkg --add-architecture i386' || '' }}
         update_on_Linux: |
           ${{ steps.id.outputs.on_Linux && '
           echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble main" | \
-          sudo tee /etc/apt/sources.list.d/apt.llvm.org.list
+          sudo tee /etc/apt/sources.list.d/apt.llvm.org.list > /dev/null
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | \
-          sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+          sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc > /dev/null
           sudo apt-get update
           sudo apt-get upgrade -y' || '' }}
         update_on_macOS: |
