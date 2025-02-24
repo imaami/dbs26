@@ -173,8 +173,8 @@ jobs:
               fn="$fn"$'\n'"$y"
             }
           done
-          fn="$fn"$'\n''}'
-          printf -vfunc -- '%q' "$fn"
+          fn="$fn"$'\n}'
+          printf -vfunc -- '%s\n' "$fn"
           export func
         }
 
