@@ -147,7 +147,7 @@ jobs:
           }
       run: |
         plan() {
-          declare -x func="do_$1 {"
+          func="do_$1 {"
           local x f y
           for x in pre_$1 $1 post_$1; do
             f="${x}_on_${{ runner.os }}"
@@ -173,8 +173,9 @@ jobs:
               func="$func"$'\n'"$y;"
             }
           done
-          func="$func"$'\n''}'
+          func="$func"$'\n'"}"
           printf '===\n%s\n' "$func"
+          export func
         }
 
         plan compile
