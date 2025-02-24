@@ -277,8 +277,9 @@ jobs:
       env:
         MSVC_DIR: ${{ steps.cfg.outputs.msvc_dir }}
         MSVC_BIN: ${{ steps.cfg.outputs.msvc_bin }}
+        compile: ${{ steps.f.outputs.compile }}
       run: |
-        ${{ steps.f.outputs.compile }}
+        eval "$compile"
 
     - name: Package
       uses: actions/upload-artifact@v4
