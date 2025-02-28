@@ -169,16 +169,16 @@ jobs:
         pre_compile: |
           mkdir -p "$BUILD_DIR"
         compile_native_Linux: |
-          "${{ steps.cfg.outputs.cc }}" ${{ steps.cfg.outputs.cflags }} -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
+          "${{ steps.cfg.outputs.cc }}" $CFLAGS -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
           strip --strip-all "$BUILD_DIR/${{ steps.cfg.outputs.exe }}"
         compile_native_macOS: |
-          "${{ steps.cfg.outputs.cc }}" -arch arm64 ${{ steps.cfg.outputs.cflags }} -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-arm64" ${{ steps.cfg.outputs.src }}
-          "${{ steps.cfg.outputs.cc }}" -arch x86_64 ${{ steps.cfg.outputs.cflags }} -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-x86_64" ${{ steps.cfg.outputs.src }}
+          "${{ steps.cfg.outputs.cc }}" -arch arm64 $CFLAGS -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-arm64" ${{ steps.cfg.outputs.src }}
+          "${{ steps.cfg.outputs.cc }}" -arch x86_64 $CFLAGS -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-x86_64" ${{ steps.cfg.outputs.src }}
           lipo -create -output "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-arm64" "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-x86_64"
         compile_cross_Windows: |
           BIN="$MSVC_BIN" . "$MSVC_GIT/msvcenv-native.sh"
           export PATH="$MSVC_BIN:$PATH"
-          "${{ steps.cfg.outputs.cc }}" --target=$TARGET_TRIPLE ${{ steps.cfg.outputs.cflags }} -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
+          "${{ steps.cfg.outputs.cc }}" --target=$TARGET_TRIPLE $CFLAGS -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
           "${{ steps.cfg.outputs.cl }}" /nologo /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "$BUILD_DIR/${{ steps.cfg.outputs.exe_cl }}" ${{ steps.cfg.outputs.src }}
         post_compile_cross_Windows_on_Linux: |
           "${{ steps.cfg.outputs.ccl }}" -nologo /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "$BUILD_DIR/${{ steps.cfg.outputs.exe_ccl }}" -fuse-ld=lld ${{ steps.cfg.outputs.src }}
@@ -202,34 +202,49 @@ jobs:
 
         type: ${{ steps.cfg.outputs.build_type }}
         cross_on: |
+          # <step>_cross_<target>_on_<runner>
           f="${x}_cross_${{ matrix.os }}_on_${{ runner.os }}"
           y="${!f}"
           [[ -z "${y// /}" ]] || {
             printf -vfn -- '%s\n%s' "$fn" "$y"
-            continue
           }
       run: |
         gen() {
           local fn='' x f y
           for x in pre_$1 $1 post_$1; do
+            # <step>_on_<runner>
             f="${x}_on_${{ runner.os }}"
             y="${!f}"
             [[ -z "${y// /}" ]] || {
               printf -vfn -- '%s\n%s' "$fn" "$y"
             }
+
+            # <step>_<target>
+            f="${x}_${{ matrix.os }}"
+            y="${!f}"
+            [[ -z "${y// /}" ]] || {
+              printf -vfn -- '%s\n%s' "$fn" "$y"
+            }
+
+            # <step>_cross_<target>_on_<runner>
             ${{ steps.id.outputs.cross && env.cross_on || '' }}
+
+            # <step>_<build_type>_<target>
+            # (i.e. <step>_cross_<target> and <step>_native_<target>)
             f="${x}_${{ env.type }}_${{ matrix.os }}"
             y="${!f}"
             [[ -z "${y// /}" ]] || {
               printf -vfn -- '%s\n%s' "$fn" "$y"
-              continue
             }
+
+            # <step>_<build_type> (i.e. <step>_cross and <step>_native)
             f="${x}_${{ env.type }}"
             y="${!f}"
             [[ -z "${y// /}" ]] || {
               printf -vfn -- '%s\n%s' "$fn" "$y"
-              continue
             }
+
+            # <step>
             y="${!x}"
             [[ -z "${y// /}" ]] || {
               printf -vfn -- '%s\n%s' "$fn" "$y"
@@ -319,6 +334,7 @@ jobs:
       working-directory: ${{ github.workspace }}/src
       env:
         BUILD_DIR: ${{ steps.cfg.outputs.build_dir }}
+        CFLAGS: ${{ steps.cfg.outputs.cflags }}
         MSVC_BIN: ${{ steps.cfg.outputs.msvc_bin }}
         MSVC_GIT: ${{ steps.cfg.outputs.msvc_git }}
       run: |
