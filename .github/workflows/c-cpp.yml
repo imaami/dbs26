@@ -31,15 +31,15 @@ jobs:
       id: id
       env:
         os_: ${{ matrix.os }}_
-        _for_: ${{ matrix.os != runner.os && '_for_' || '' }}${{ matrix.os != runner.os && matrix.os || '' }}
-        on_: ${{ matrix.os != runner.os && 'on_' || '' }}${{ matrix.os != runner.os && runner.os || '' }}
-        _on_: ${{ matrix.os != runner.os && '=on_' || '' }}${{ matrix.os != runner.os && runner.os || '' }}
+        _on_: ${{ matrix.os != runner.os && '_on_' || '' }}${{ matrix.os != runner.os && runner.os || '' }}
+        cross_: ${{ matrix.os != runner.os && 'cross_' || '' }}${{ matrix.os != runner.os && matrix.os || '' }}
+        _cross_: ${{ matrix.os != runner.os && '=cross_' || '' }}${{ matrix.os != runner.os && matrix.os || '' }}
         type: ${{ matrix.os == runner.os && 'native' || 'cross' }}
       run: |
         printf '%s\n' \
                "on_${{ runner.os }}=on_${{ runner.os }}" \
-               "for_${{ matrix.os }}=for_${{ matrix.os }}" \
-               ${{ env.on_ }}${{ env._for_ }}${{ env._on_ }}${{ env._for_ }} \
+               "${{ matrix.os }}=${{ matrix.os }}" \
+               ${{ env.cross_ }}${{ env._on_ }}${{ env._cross_ }}${{ env._on_ }} \
                "build=${{ matrix.os != runner.os && env.os_ || '' }}${{ matrix.on }}" \
                "${{ matrix.os }}_${{ runner.os }}=${{ env.type }}_${{ matrix.os }}" \
                "${{ env.type }}_${{ matrix.os }}=${{ env.type }}_${{ matrix.os }}" \
@@ -60,11 +60,11 @@ jobs:
       env:
         build_type: ${{ steps.id.outputs.cross }}${{ steps.id.outputs.native }}
         cc: ${{ steps.id.outputs.on_macOS && 'clang' || 'clang-21' }}
-        cl: ${{ steps.id.outputs.for_Windows && 'cl' || '' }}
-        ccl: ${{ steps.id.outputs.on_Linux_for_Windows && 'clang-cl-21' || '' }}
+        cl: ${{ steps.id.outputs.Windows && 'cl' || '' }}
+        ccl: ${{ steps.id.outputs.cross_Windows_on_Linux && 'clang-cl-21' || '' }}
         baseflags: -std=gnu2${{ steps.id.outputs.on_macOS && 'x' || '3' }} -flto=full -O3 -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1
-        archflags: ${{ ! steps.id.outputs.for_macOS && ' -fuse-ld=lld' || '' }}${{ steps.id.outputs.for_Linux && ' -march=x86-64-v3 -mtune=znver3' || '' }}
-        ext: ${{ steps.id.outputs.for_Windows && '.exe' || '' }}
+        archflags: ${{ ! steps.id.outputs.macOS && ' -fuse-ld=lld' || '' }}${{ steps.id.outputs.Linux && ' -march=x86-64-v3 -mtune=znver3' || '' }}
+        ext: ${{ steps.id.outputs.Windows && '.exe' || '' }}
       run: |
         exe="dbs26-${{ env.cc }}${{ env.ext }}"
         ${{ env.cl && 'exe_cl=dbs26-' || '' }}${{ env.cl }}${{ env.cl && env.ext || '' }}
@@ -137,9 +137,9 @@ jobs:
           echo "manifest=$manifest" >> "$GITHUB_OUTPUT"
           echo "path=$msvc_cache" >> "$GITHUB_OUTPUT"
 
-        pre_depends_on_Linux_for_Windows: |
+        pre_depends_cross_Windows_on_Linux: |
           sudo apt-get install -y msitools winbind wine wine64
-        pre_depends_on_macOS_for_Windows: |
+        pre_depends_cross_Windows_on_macOS: |
           brew install msitools wine-stable
 
         depends_cross_Windows: |
@@ -169,7 +169,7 @@ jobs:
         post_depends_on_macOS: |
           brew install coreutils gnu-sed
           echo "$(brew --prefix)/opt/coreutils/libexec/gnubin:$(brew --prefix)/opt/gnu-sed/libexec/gnubin" >> "$GITHUB_PATH"
-        post_depends_on_macOS_for_Windows: |
+        post_depends_cross_Windows_on_macOS: |
           brew install llvm lld binutils
           echo "$(brew --prefix)/opt/llvm/bin:$(brew --prefix)/opt/binutils/bin" >> "$GITHUB_PATH"
 
@@ -189,7 +189,7 @@ jobs:
           export PATH="$MSVC_BIN:$PATH"
           "${{ steps.cfg.outputs.cc }}" --target=$TARGET_TRIPLE ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
           "${{ steps.cfg.outputs.cl }}" /nologo /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe_cl }}" ${{ steps.cfg.outputs.src }}
-        post_compile_on_Linux_for_Windows: |
+        post_compile_cross_Windows_on_Linux: |
           "${{ steps.cfg.outputs.ccl }}" -nologo /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe_ccl }}" -fuse-ld=lld ${{ steps.cfg.outputs.src }}
 
         pre_validate: |
@@ -206,12 +206,12 @@ jobs:
         validate_cross_Windows: |
           try ./${{ steps.cfg.outputs.exe }}
           try ./${{ steps.cfg.outputs.exe_cl }}
-        post_validate_on_Linux_for_Windows: |
+        post_validate_cross_Windows_on_Linux: |
           try ./${{ steps.cfg.outputs.exe_ccl }}
 
         type: ${{ steps.cfg.outputs.build_type }}
         on_for: |
-          f="${x}_on_${{ runner.os }}_for_${{ matrix.os }}"
+          f="${x}_cross_${{ matrix.os }}_on_${{ runner.os }}"
           y="${!f}"
           [[ -z "${y// /}" ]] || {
             printf -vfn -- '%s\n%s' "$fn" "$y"
