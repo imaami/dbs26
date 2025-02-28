@@ -83,16 +83,12 @@ jobs:
 
         ${{ steps.id.outputs.cross_Windows && '
         echo "WINEDEBUG=-all" >> "$GITHUB_ENV"
-        MSVC_DIR="$GITHUB_WORKSPACE/msvc-wine"
-        SDK_PATH="winsdk"
-        DL_CACHE="$SDK_PATH/cache"
-        MSVC_SDK="$GITHUB_WORKSPACE/$SDK_PATH"
-        printf "%s\n" \
-               sdk_path="$SDK_PATH" \
-               dl_cache="$DL_CACHE" \
-               msvc_dir="$MSVC_DIR" \
-               msvc_sdk="$MSVC_SDK" \
-               msvc_bin="$MSVC_SDK/bin/x64" >> "$GITHUB_OUTPUT"
+        msvc_sdk="msvc"
+        printf "%s\n"                       \
+               cache="cache"                \
+               msvc_bin="$msvc_sdk/bin/x64" \
+               msvc_git="msvc-wine"         \
+               msvc_sdk="$msvc_sdk" >> "$GITHUB_OUTPUT"
         ' || '' }}
 
         build_dir="$GITHUB_WORKSPACE/build"
@@ -106,82 +102,74 @@ jobs:
     - name: Plan build
       id: f
       env:
-        pre_update_on_Linux_for_Windows: |
-          #sudo mkdir -pm755 /etc/apt/keyrings
-          #wget -qO- https://dl.winehq.org/wine-builds/winehq.key | \
-          #sudo gpg --dearmor -o /etc/apt/keyrings/winehq-archive.key -
-          #wget -qO- https://dl.winehq.org/wine-builds/ubuntu/dists/noble/winehq-noble.sources | \
-          #sudo tee /etc/apt/sources.list.d/winehq.sources > /dev/null
-          #sudo dpkg --add-architecture i386
         update_on_Linux: |
           echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble main" | \
           sudo tee /etc/apt/sources.list.d/apt.llvm.org.list > /dev/null
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | \
           sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc > /dev/null
-          sudo apt-get update
-        post_update_native_Linux: |
+          sudo apt-get update -y
           sudo apt-get purge -y firefox snapd
-          #sudo apt-get upgrade -y
 
-        pre_update_on_macOS: |
+        update_on_macOS: |
           brew update
-        update_native_macOS: |
-          #brew upgrade
-        post_update_on_macOS: |
           brew install bash
 
         cache_cross_Windows: |
-          mkdir -p "$MSVC_SDK/cache"
-          "$MSVC_DIR/vsdownload.py" --skip-recommended --msvc-version=17.13 --sdk-version=10.0.26100 --accept-license --save-manifest --architecture=x64 --host-arch=x64 --only-host=yes --print-version || true
-          manifest=$(ls -1tr | grep '\.manifest$' | tail -1) || true
-          "$MSVC_DIR/vsdownload.py" --skip-recommended --msvc-version=17.13 --sdk-version=10.0.26100 --accept-license --manifest="$manifest" --architecture=x64 --host-arch=x64 --only-host=yes --print-hashes | LC_ALL=C sort > tmp.txt
-          key3=$(${{ steps.id.outputs.on_macOS && 'shasum' || 'sha1sum' }} tmp.txt)
-          key3="MSVC-${manifest%\.manifest}-${key3::40}"
-          key2="${key3%-*}"
-          key1="${key2%\.*}"
-          key0="${key1%\.*}"
-          echo "key3=$key3" >> "$GITHUB_OUTPUT"
-          [[ "$key2" == "$key3" ]] || echo "key2=$key2" >> "$GITHUB_OUTPUT"
-          [[ "$key1" == "$key2" ]] || echo "key1=$key1" >> "$GITHUB_OUTPUT"
-          [[ "$key0" == "$key1" ]] || echo "key0=$key0" >> "$GITHUB_OUTPUT"
+          local msvc_cache="$cache/msvc"
+          local MSVC_CACHE="$GITHUB_WORKSPACE/$msvc_cache"
+          local MSVC_GIT="$GITHUB_WORKSPACE/$msvc_git"
+          local MSVC_SDK="$GITHUB_WORKSPACE/$msvc_sdk"
+          mkdir -p "$MSVC_CACHE"
+          "$MSVC_GIT/vsdownload.py" --accept-license --architecture=x64 --host-arch=x64 --only-host=yes --preview --print-hashes --save-manifest > SHA256SUMS
+          local manifest=$(ls -1tr | grep '\.manifest$' | tail -1) || true
+          local version=$(jq -r '.info.productSemanticVersion' "$manifest")
+          local hash=$(${{ steps.id.outputs.on_macOS && 'shasum' || 'sha1sum' }} SHA256SUMS)
+          local k="msvc-$version" r
+          echo "key=$k-${hash::40}" >> "$GITHUB_OUTPUT"
+          {
+            echo 'keys<<EOF'
+            while [[ "$k" != "$r" ]]; do
+              echo "$k"; r="$k"
+              k="${k%?${k##*[0-9][.+-]}}"
+            done
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
           echo "manifest=$manifest" >> "$GITHUB_OUTPUT"
+          echo "path=$msvc_cache" >> "$GITHUB_OUTPUT"
+
         pre_depends_on_Linux_for_Windows: |
           sudo apt-get install -y msitools winbind wine wine64
         pre_depends_on_macOS_for_Windows: |
           brew install msitools wine-stable
 
         depends_cross_Windows: |
+          local MSVC_CACHE="$GITHUB_WORKSPACE/$msvc_cache"
+          local MSVC_GIT="$GITHUB_WORKSPACE/$msvc_git"
+          local MSVC_SDK="$GITHUB_WORKSPACE/$msvc_sdk"
+          local OLD_CACHE=''
           if [[ "$cache_miss" ]]; then
-            printf '\033[1;33mDownloading MSVC SDK\033[m\n'
-            if [[ -d "$MSVC_SDK" ]]; then
-              PREV_SDK="$MSVC_SDK.old"
-              mv "$MSVC_SDK" "$PREV_SDK"
-            else
-              unset PREV_SDK
-            fi
-            mkdir -p "$MSVC_SDK/cache"
-            "$MSVC_DIR/vsdownload.py" --skip-recommended --msvc-version=17.13 --sdk-version=10.0.26100 --accept-license --manifest="$manifest" --architecture=x64 --host-arch=x64 --only-host=yes --cache="$MSVC_SDK/cache"${PREV_SDK:+ --migrate="$PREV_SDK/cache"} --only-download
-            if [[ "$PREV_SDK" ]]; then
-              rm -rf "$PREV_SDK"
-              unset PREV_SDK
+            printf '\033[1;33mRe-caching MSVC SDK\033[m\n'
+            if [[ -d "$MSVC_CACHE" ]]; then
+              OLD_CACHE="$MSVC_CACHE.old"
+              mv "$MSVC_CACHE" "$OLD_CACHE"
             fi
           fi
           printf '\033[1;32mInstalling MSVC SDK\033[m\n'
-          "$MSVC_DIR/vsdownload.py" --skip-recommended --msvc-version=17.13 --sdk-version=10.0.26100 --accept-license --manifest="$manifest" --architecture=x64 --host-arch=x64 --only-host=yes --dest="$MSVC_SDK" --cache="$MSVC_SDK/cache"
-          "$MSVC_DIR/install.sh" "$MSVC_SDK"
-        depends_native_Linux: |
-          sudo apt-get install -y clang clang-21 lld lld-21 llvm-21-linker-tools
+          mkdir -p "$MSVC_CACHE" "$MSVC_SDK"
+          "$MSVC_GIT/vsdownload.py" --accept-license --architecture=x64 --host-arch=x64 --only-host=yes --preview --manifest="$manifest" --cache="$MSVC_CACHE"${OLD_CACHE:+ --migrate="$OLD_CACHE"} --dest="$MSVC_SDK"
+          if [[ "$OLD_CACHE" && -d "$OLD_CACHE" ]]; then
+            rm -rf "$OLD_CACHE"
+          fi
+          unset OLD_CACHE
+          "$MSVC_GIT/install.sh" "$MSVC_SDK"
 
-        post_depends_on_Linux_for_Windows: |
-          sudo apt-get purge -y firefox snapd
-          #sudo apt-get upgrade -y
-          sudo apt-get install -y clang clang-21 lld lld-21 llvm-21-linker-tools python3
+        post_depends_on_Linux: |
+          sudo apt-get install -y clang clang-21 lld lld-21 llvm-21-linker-tools
 
         post_depends_on_macOS: |
           brew install coreutils gnu-sed
           echo "$(brew --prefix)/opt/coreutils/libexec/gnubin:$(brew --prefix)/opt/gnu-sed/libexec/gnubin" >> "$GITHUB_PATH"
         post_depends_on_macOS_for_Windows: |
-          #brew upgrade
           brew install llvm lld binutils
           echo "$(brew --prefix)/opt/llvm/bin:$(brew --prefix)/opt/binutils/bin" >> "$GITHUB_PATH"
 
@@ -195,7 +183,9 @@ jobs:
           "${{ steps.cfg.outputs.cc }}" -arch x86_64 ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}-x86_64" ${{ steps.cfg.outputs.src }}
           lipo -create -output "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}" "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}-arm64" "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}-x86_64"
         compile_cross_Windows: |
-          BIN="$MSVC_BIN" . "$MSVC_DIR/msvcenv-native.sh"
+          local MSVC_BIN="$GITHUB_WORKSPACE/$msvc_bin"
+          local MSVC_GIT="$GITHUB_WORKSPACE/$msvc_git"
+          BIN="$MSVC_BIN" . "$MSVC_GIT/msvcenv-native.sh"
           export PATH="$MSVC_BIN:$PATH"
           "${{ steps.cfg.outputs.cc }}" --target=$TARGET_TRIPLE ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
           "${{ steps.cfg.outputs.cl }}" /nologo /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe_cl }}" ${{ steps.cfg.outputs.src }}
@@ -280,10 +270,9 @@ jobs:
     - name: Prepare cache
       id: cache
       env:
-        MSVC_DIR: ${{ steps.cfg.outputs.msvc_dir }}
-        MSVC_SDK: ${{ steps.cfg.outputs.msvc_sdk }}
-        SDK_PATH: ${{ steps.cfg.outputs.sdk_path }}
-        DL_CACHE: ${{ steps.cfg.outputs.dl_cache }}
+        cache: ${{ steps.cfg.outputs.cache }}
+        msvc_git: ${{ steps.cfg.outputs.msvc_git }}
+        msvc_sdk: ${{ steps.cfg.outputs.msvc_sdk }}
       run: |
         ${{ steps.f.outputs.cache }}
 
@@ -292,20 +281,18 @@ jobs:
       id: cache-msvc
       uses: actions/cache@v4
       with:
-        path: ${{ steps.cfg.outputs.dl_cache }}
-        key: ${{ steps.cache.outputs.key3 }}
+        path: ${{ steps.cache.outputs.path }}
+        key: ${{ steps.cache.outputs.key }}
         restore-keys: |
-          ${{ steps.cache.outputs.key2 }}
-          ${{ steps.cache.outputs.key1 }}
-          ${{ steps.cache.outputs.key0 }}
+          ${{ steps.cache.outputs.keys }}
 
     - name: Install dependencies
       env:
-        cache_hit: ${{ steps.cache-msvc.outputs.cache-hit != 'true' && '' || '1' }}
         cache_miss: ${{ steps.cache-msvc.outputs.cache-hit != 'true' && '1' || '' }}
         manifest: ${{ steps.cache.outputs.manifest }}
-        MSVC_DIR: ${{ steps.cfg.outputs.msvc_dir }}
-        MSVC_SDK: ${{ steps.cfg.outputs.msvc_sdk }}
+        msvc_cache: ${{ steps.cache.outputs.path }}
+        msvc_git: ${{ steps.cfg.outputs.msvc_git }}
+        msvc_sdk: ${{ steps.cfg.outputs.msvc_sdk }}
       run: |
         ${{ steps.f.outputs.depends }}
 
@@ -340,8 +327,8 @@ jobs:
     - name: Compile
       working-directory: ${{ github.workspace }}/src
       env:
-        MSVC_DIR: ${{ steps.cfg.outputs.msvc_dir }}
-        MSVC_BIN: ${{ steps.cfg.outputs.msvc_bin }}
+        msvc_bin: ${{ steps.cfg.outputs.msvc_bin }}
+        msvc_git: ${{ steps.cfg.outputs.msvc_git }}
       run: |
         ${{ steps.f.outputs.compile }}
 
