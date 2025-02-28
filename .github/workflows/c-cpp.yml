@@ -83,11 +83,11 @@ jobs:
 
         ${{ steps.id.outputs.cross_Windows && '
         echo "WINEDEBUG=-all" >> "$GITHUB_ENV"
-        msvc_sdk="msvc"
-        printf "%s\n"                       \
-               cache="cache"                \
-               msvc_bin="$msvc_sdk/bin/x64" \
-               msvc_git="msvc-wine"         \
+        msvc_sdk="$GITHUB_WORKSPACE/msvc"
+        printf "%s\n"                                 \
+               msvc_cache="$GITHUB_WORKSPACE/cache"   \
+               msvc_bin="$msvc_sdk/bin/x64"           \
+               msvc_git="$GITHUB_WORKSPACE/msvc-wine" \
                msvc_sdk="$msvc_sdk" >> "$GITHUB_OUTPUT"
         ' || '' }}
 
@@ -99,7 +99,7 @@ jobs:
                build_dir="$build_dir" \
                build_type="${{ env.build_type }}" >> "$GITHUB_OUTPUT"
 
-    - name: Plan build
+    - name: Generate build
       id: f
       env:
         update_on_Linux: |
@@ -111,14 +111,10 @@ jobs:
           sudo apt-get purge -y firefox snapd
 
         update_on_macOS: |
-          brew update
-          brew install bash
+          brew update --quiet
+          brew install --quiet bash
 
         cache_cross_Windows: |
-          local msvc_cache="$cache/msvc"
-          local MSVC_CACHE="$GITHUB_WORKSPACE/$msvc_cache"
-          local MSVC_GIT="$GITHUB_WORKSPACE/$msvc_git"
-          local MSVC_SDK="$GITHUB_WORKSPACE/$msvc_sdk"
           mkdir -p "$MSVC_CACHE"
           "$MSVC_GIT/vsdownload.py" --accept-license --architecture=x64 --host-arch=x64 --only-host=yes --preview --print-hashes --save-manifest > SHA256SUMS
           local manifest=$(ls -1tr | grep '\.manifest$' | tail -1) || true
@@ -134,18 +130,15 @@ jobs:
             done
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
-          echo "manifest=$manifest" >> "$GITHUB_OUTPUT"
-          echo "path=$msvc_cache" >> "$GITHUB_OUTPUT"
+          echo "manifest=$(realpath "$manifest")" >> "$GITHUB_OUTPUT"
+          echo "path=${MSVC_CACHE#$GITHUB_WORKSPACE/}" >> "$GITHUB_OUTPUT"
 
         pre_depends_cross_Windows_on_Linux: |
           sudo apt-get install -y msitools winbind wine wine64
         pre_depends_cross_Windows_on_macOS: |
-          brew install msitools wine-stable
+          brew install --quiet msitools wine-stable
 
         depends_cross_Windows: |
-          local MSVC_CACHE="$GITHUB_WORKSPACE/$msvc_cache"
-          local MSVC_GIT="$GITHUB_WORKSPACE/$msvc_git"
-          local MSVC_SDK="$GITHUB_WORKSPACE/$msvc_sdk"
           local OLD_CACHE=''
           if [[ "$cache_miss" ]]; then
             printf '\033[1;33mRe-caching MSVC SDK\033[m\n'
@@ -156,7 +149,7 @@ jobs:
           fi
           printf '\033[1;32mInstalling MSVC SDK\033[m\n'
           mkdir -p "$MSVC_CACHE" "$MSVC_SDK"
-          "$MSVC_GIT/vsdownload.py" --accept-license --architecture=x64 --host-arch=x64 --only-host=yes --preview --manifest="$manifest" --cache="$MSVC_CACHE"${OLD_CACHE:+ --migrate="$OLD_CACHE"} --dest="$MSVC_SDK"
+          "$MSVC_GIT/vsdownload.py" --accept-license --architecture=x64 --host-arch=x64 --only-host=yes --preview --manifest="$MANIFEST" --cache="$MSVC_CACHE"${OLD_CACHE:+ --migrate="$OLD_CACHE"} --dest="$MSVC_SDK"
           if [[ "$OLD_CACHE" && -d "$OLD_CACHE" ]]; then
             rm -rf "$OLD_CACHE"
           fi
@@ -167,30 +160,28 @@ jobs:
           sudo apt-get install -y clang clang-21 lld lld-21 llvm-21-linker-tools
 
         post_depends_on_macOS: |
-          brew install coreutils gnu-sed
+          brew install --quiet coreutils gnu-sed
           echo "$(brew --prefix)/opt/coreutils/libexec/gnubin:$(brew --prefix)/opt/gnu-sed/libexec/gnubin" >> "$GITHUB_PATH"
         post_depends_cross_Windows_on_macOS: |
-          brew install llvm lld binutils
+          brew install --quiet llvm lld binutils
           echo "$(brew --prefix)/opt/llvm/bin:$(brew --prefix)/opt/binutils/bin" >> "$GITHUB_PATH"
 
         pre_compile: |
-          mkdir -p "${{ steps.cfg.outputs.build_dir }}"
+          mkdir -p "$BUILD_DIR"
         compile_native_Linux: |
-          "${{ steps.cfg.outputs.cc }}" ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
-          strip --strip-all "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}"
+          "${{ steps.cfg.outputs.cc }}" ${{ steps.cfg.outputs.cflags }} -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
+          strip --strip-all "$BUILD_DIR/${{ steps.cfg.outputs.exe }}"
         compile_native_macOS: |
-          "${{ steps.cfg.outputs.cc }}" -arch arm64 ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}-arm64" ${{ steps.cfg.outputs.src }}
-          "${{ steps.cfg.outputs.cc }}" -arch x86_64 ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}-x86_64" ${{ steps.cfg.outputs.src }}
-          lipo -create -output "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}" "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}-arm64" "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}-x86_64"
+          "${{ steps.cfg.outputs.cc }}" -arch arm64 ${{ steps.cfg.outputs.cflags }} -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-arm64" ${{ steps.cfg.outputs.src }}
+          "${{ steps.cfg.outputs.cc }}" -arch x86_64 ${{ steps.cfg.outputs.cflags }} -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-x86_64" ${{ steps.cfg.outputs.src }}
+          lipo -create -output "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-arm64" "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-x86_64"
         compile_cross_Windows: |
-          local MSVC_BIN="$GITHUB_WORKSPACE/$msvc_bin"
-          local MSVC_GIT="$GITHUB_WORKSPACE/$msvc_git"
           BIN="$MSVC_BIN" . "$MSVC_GIT/msvcenv-native.sh"
           export PATH="$MSVC_BIN:$PATH"
-          "${{ steps.cfg.outputs.cc }}" --target=$TARGET_TRIPLE ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
-          "${{ steps.cfg.outputs.cl }}" /nologo /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe_cl }}" ${{ steps.cfg.outputs.src }}
+          "${{ steps.cfg.outputs.cc }}" --target=$TARGET_TRIPLE ${{ steps.cfg.outputs.cflags }} -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
+          "${{ steps.cfg.outputs.cl }}" /nologo /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "$BUILD_DIR/${{ steps.cfg.outputs.exe_cl }}" ${{ steps.cfg.outputs.src }}
         post_compile_cross_Windows_on_Linux: |
-          "${{ steps.cfg.outputs.ccl }}" -nologo /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe_ccl }}" -fuse-ld=lld ${{ steps.cfg.outputs.src }}
+          "${{ steps.cfg.outputs.ccl }}" -nologo /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "$BUILD_DIR/${{ steps.cfg.outputs.exe_ccl }}" -fuse-ld=lld ${{ steps.cfg.outputs.src }}
 
         pre_validate: |
           try() {
@@ -210,7 +201,7 @@ jobs:
           try ./${{ steps.cfg.outputs.exe_ccl }}
 
         type: ${{ steps.cfg.outputs.build_type }}
-        on_for: |
+        cross_on: |
           f="${x}_cross_${{ matrix.os }}_on_${{ runner.os }}"
           y="${!f}"
           [[ -z "${y// /}" ]] || {
@@ -218,7 +209,7 @@ jobs:
             continue
           }
       run: |
-        plan() {
+        gen() {
           local fn='' x f y
           for x in pre_$1 $1 post_$1; do
             f="${x}_on_${{ runner.os }}"
@@ -226,7 +217,7 @@ jobs:
             [[ -z "${y// /}" ]] || {
               printf -vfn -- '%s\n%s' "$fn" "$y"
             }
-            ${{ steps.id.outputs.cross && env.on_for || '' }}
+            ${{ steps.id.outputs.cross && env.cross_on || '' }}
             f="${x}_${{ env.type }}_${{ matrix.os }}"
             y="${!f}"
             [[ -z "${y// /}" ]] || {
@@ -257,11 +248,11 @@ jobs:
           printf '%s<<EOF\n%s\nEOF\n' "$1" "$fn" >> "$GITHUB_OUTPUT"
         }
 
-        plan update   '1;35'
-        plan cache    '1;36'
-        plan depends  '1;34'
-        plan compile  '1;33'
-        plan validate '1;32'
+        gen update   '1;35'
+        gen cache    '1;36'
+        gen depends  '1;34'
+        gen compile  '1;33'
+        gen validate '1;32'
 
     - name: Update system
       run: |
@@ -270,9 +261,9 @@ jobs:
     - name: Prepare cache
       id: cache
       env:
-        cache: ${{ steps.cfg.outputs.cache }}
-        msvc_git: ${{ steps.cfg.outputs.msvc_git }}
-        msvc_sdk: ${{ steps.cfg.outputs.msvc_sdk }}
+        MSVC_CACHE: ${{ steps.cfg.outputs.msvc_cache }}
+        MSVC_GIT: ${{ steps.cfg.outputs.msvc_git }}
+        MSVC_SDK: ${{ steps.cfg.outputs.msvc_sdk }}
       run: |
         ${{ steps.f.outputs.cache }}
 
@@ -288,11 +279,11 @@ jobs:
 
     - name: Install dependencies
       env:
-        cache_miss: ${{ steps.cache-msvc.outputs.cache-hit != 'true' && '1' || '' }}
-        manifest: ${{ steps.cache.outputs.manifest }}
-        msvc_cache: ${{ steps.cache.outputs.path }}
-        msvc_git: ${{ steps.cfg.outputs.msvc_git }}
-        msvc_sdk: ${{ steps.cfg.outputs.msvc_sdk }}
+        cache_miss: ${{ steps.id.outputs.cross_Windows && steps.cache-msvc.outputs.cache-hit != 'true' && '1' || '' }}
+        MANIFEST: ${{ steps.cache.outputs.manifest }}
+        MSVC_CACHE: ${{ steps.cfg.outputs.msvc_cache }}
+        MSVC_GIT: ${{ steps.cfg.outputs.msvc_git }}
+        MSVC_SDK: ${{ steps.cfg.outputs.msvc_sdk }}
       run: |
         ${{ steps.f.outputs.depends }}
 
@@ -327,8 +318,9 @@ jobs:
     - name: Compile
       working-directory: ${{ github.workspace }}/src
       env:
-        msvc_bin: ${{ steps.cfg.outputs.msvc_bin }}
-        msvc_git: ${{ steps.cfg.outputs.msvc_git }}
+        BUILD_DIR: ${{ steps.cfg.outputs.build_dir }}
+        MSVC_BIN: ${{ steps.cfg.outputs.msvc_bin }}
+        MSVC_GIT: ${{ steps.cfg.outputs.msvc_git }}
       run: |
         ${{ steps.f.outputs.compile }}
 
