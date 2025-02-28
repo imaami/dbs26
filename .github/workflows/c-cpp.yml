@@ -10,123 +10,306 @@ defaults:
   run:
     shell: bash
 
-env:
-  __c_src: args.c dbs26.c
-  __build_path: build
-  __dest_path: dest
-  __src_path: src
-  __nproc: nproc
-  __cc: clang-21
-  __cflags: -std=gnu23 -flto=full -fuse-ld=lld -O3 -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1 -march=x86-64-v3 -mtune=znver3
-
 jobs:
   build:
-    name: ${{ matrix.os }}${{ matrix.os != matrix.on && ' target on ' || '' }}${{ matrix.os != matrix.on && matrix.on || '' }}
-    runs-on: ${{ matrix.on == 'macos' && 'macos-15' || 'ubuntu-24.04' }}
+    name: ${{ matrix.os }} target on ${{ matrix.on }}
+    runs-on: ${{ matrix.on }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [ linux, macos, windows ]
-        include:
-          - os: linux
-            on: linux
-          - os: macos
-            on: macos
-          - os: windows
-            on: linux
-    env:
-      __executable: dbs26${{ matrix.os == 'windows' && '.exe' || '' }}
-      __native: ${{ matrix.os == matrix.on }}
+        os: [ Linux, macOS, Windows ]
+        on: [ ubuntu-24.04, macos-15, macos-14 ]
+        exclude:
+          - os: Linux
+            on: macos-15
+          - os: Linux
+            on: macos-14
+          - os: macOS
+            on: ubuntu-24.04
     steps:
-    - name: Install system updates
-      run: |
-        ${{ matrix.on == 'linux' && '
-        printf "deb http://apt.llvm.org/%s/ %s %s\n" \
-               noble llvm-toolchain-noble main \
-        | sudo tee /etc/apt/sources.list.d/apt.llvm.org.list
-        wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
-        | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc' || '' }}
-        ${{ matrix.on == 'linux' && matrix.os == 'windows' && '
-        sudo mkdir -pm755 /etc/apt/keyrings
-        wget -qO- https://dl.winehq.org/wine-builds/winehq.key \
-        | sudo gpg --dearmor -o /etc/apt/keyrings/winehq-archive.key -
-        wget -qO- https://dl.winehq.org/wine-builds/ubuntu/dists/noble/winehq-noble.sources \
-        | sudo tee /etc/apt/sources.list.d/winehq.sources
-        cat /etc/apt/sources.list.d/winehq.sources
-        sudo dpkg --add-architecture i386' || '' }}
-        ${{ matrix.on == 'linux' && 'sudo apt-get update
-        sudo apt-get upgrade -y' || '' }}
-        ${{ matrix.on == 'macos' && 'set +e
-        brew update
-        brew upgrade
-        brew install bash' || '' }}
-
-    - name: Set env variables
+    - name: id
+      id: id
       env:
-        __msvc_path_linux: ${{ matrix.os == 'windows' && 'msvc' || '' }}
-        __nproc_macos: sysctl -n hw.logicalcpu
-        __cc_macos: clang
-        __cflags_macos: -std=gnu2x -flto=full -O3 -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1
+        os_: ${{ matrix.os }}_
+        _for_: ${{ matrix.os != runner.os && '_for_' || '' }}${{ matrix.os != runner.os && matrix.os || '' }}
+        on_: ${{ matrix.os != runner.os && 'on_' || '' }}${{ matrix.os != runner.os && runner.os || '' }}
+        _on_: ${{ matrix.os != runner.os && '=on_' || '' }}${{ matrix.os != runner.os && runner.os || '' }}
+        type: ${{ matrix.os == runner.os && 'native' || 'cross' }}
       run: |
-        def() {
-          set "$1" "${1}_${{ matrix.on }}"
-          if [[ "${!2}" ]]; then
-            declare -g "$1=${!2//$'\n'/ }"
-            echo "$1=${!1}" >> "$GITHUB_ENV"
-          fi
-        }
-
-        def __cc
-        def __cflags
-        def __nproc
-        ${{ matrix.on == 'linux' && matrix.os == 'windows' && 'def __msvc_path
-        [[ "$__msvc_sdk_path" ]] || {
-          __msvc_sdk_path="$__msvc_path/sdk"
-          echo "__msvc_sdk_path=$__msvc_sdk_path" >> "$GITHUB_ENV"
-        }
-        [[ "$__msvc_dir" ]] || {
-          __msvc_dir="$GITHUB_WORKSPACE/$__msvc_path"
-          echo "__msvc_dir=$__msvc_dir" >> "$GITHUB_ENV"
-        }
-        [[ "$__msvc_sdk_dir" ]] || {
-          __msvc_sdk_dir="$__msvc_dir/sdk"
-          echo "__msvc_sdk_dir=$__msvc_sdk_dir" >> "$GITHUB_ENV"
-        }' || '' }}
-        [[ "$__build_dir" ]] || {
-          __build_dir="$GITHUB_WORKSPACE/$__build_path"
-          echo "__build_dir=$__build_dir" >> "$GITHUB_ENV"
-        }
-        echo "__exe=$__build_dir/$__executable" >> "$GITHUB_ENV"
+        printf '%s\n' \
+               "on_${{ runner.os }}=on_${{ runner.os }}" \
+               "for_${{ matrix.os }}=for_${{ matrix.os }}" \
+               ${{ env.on_ }}${{ env._for_ }}${{ env._on_ }}${{ env._for_ }} \
+               "build=${{ matrix.os != runner.os && env.os_ || '' }}${{ matrix.on }}" \
+               "${{ matrix.os }}_${{ runner.os }}=${{ env.type }}_${{ matrix.os }}" \
+               "${{ env.type }}_${{ matrix.os }}=${{ env.type }}_${{ matrix.os }}" \
+               "${{ env.type }}=${{ env.type }}" >> "$GITHUB_OUTPUT"
 
     - uses: actions/checkout@v4
 
     - name: Clone msvc-wine
-      if: ${{ matrix.os == 'windows' && matrix.on == 'linux' }}
+      if: ${{ steps.id.outputs.cross_Windows }}
       uses: actions/checkout@v4
       with:
-        repository: mstorsjo/msvc-wine
-        path: ${{ env.__msvc_dir }}
-        ref: master
+        repository: imaami/msvc-wine
+        path: ${{ github.workspace }}/msvc-wine
+        ref: msvc-17.13-10.0.26100-14.43.17.13
 
-    - name: Install build dependencies
+    - name: Configure build
+      id: cfg
+      env:
+        build_type: ${{ steps.id.outputs.cross }}${{ steps.id.outputs.native }}
+        cc: ${{ steps.id.outputs.on_macOS && 'clang' || 'clang-21' }}
+        cl: ${{ steps.id.outputs.for_Windows && 'cl' || '' }}
+        ccl: ${{ steps.id.outputs.on_Linux_for_Windows && 'clang-cl-21' || '' }}
+        baseflags: -std=gnu2${{ steps.id.outputs.on_macOS && 'x' || '3' }} -flto=full -O3 -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1
+        archflags: ${{ ! steps.id.outputs.for_macOS && ' -fuse-ld=lld' || '' }}${{ steps.id.outputs.for_Linux && ' -march=x86-64-v3 -mtune=znver3' || '' }}
+        ext: ${{ steps.id.outputs.for_Windows && '.exe' || '' }}
       run: |
-        ${{ matrix.on == 'linux' && '
-        sudo apt-get install -y clang clang-21 lld \
-                     lld-21 llvm-21-linker-tools' || '' }}
-        ${{ matrix.on == 'linux' && matrix.os == 'windows' && '
-        sudo apt-get install -y --install-recommends ca-certificates \
-                     msitools python3 winbind winehq-staging' || '' }}
-        ${{ matrix.on == 'macos' && 'set +e
-        brew install coreutils gnu-sed
-        printf -vP "$(brew --prefix)/opt/%s/libexec/gnubin:" gnu-sed coreutils
-        P="${P}$PATH"
-        echo "export PATH=\"$P\"" >> "$HOME/.bash_profile"
-        echo "PATH=$P" >> "$GITHUB_ENV"' || '' }}
-        ${{ matrix.on == 'linux' && matrix.os == 'windows' && 'mkdir -p "$__msvc_sdk_dir"
-        "$__msvc_dir/vsdownload.py" --accept-license --dest "$__msvc_sdk_dir"
-        "$__msvc_dir/install.sh" "$__msvc_sdk_dir"
-        echo "PATH=$__msvc_sdk_dir/bin/x64:$PATH" >> "$GITHUB_ENV"' || '' }}
+        exe="dbs26-${{ env.cc }}${{ env.ext }}"
+        ${{ env.cl && 'exe_cl=dbs26-' || '' }}${{ env.cl }}${{ env.cl && env.ext || '' }}
+        ${{ env.ccl && 'exe_ccl=dbs26-' || '' }}${{ env.ccl }}${{ env.ccl && env.ext || '' }}
+        printf '%s\n' \
+               ${{ steps.id.outputs.cross_Windows && 'maybe_use_wine="set \$(command -v wine64 || command -v wine || command -v wine-stable || echo false) \"\$@\""' || '' }} \
+               cc=${{ env.cc }} \
+               ${{ env.cl && 'cl=' || '' }}${{ env.cl }} \
+               ${{ env.ccl && 'ccl=' || '' }}${{ env.ccl }} \
+               cflags="${{ env.baseflags }}${{ env.archflags }}" \
+               exe="$exe" \
+               ${{ env.cl && 'exe_cl=$exe_cl' || '' }} \
+               ${{ env.ccl && 'exe_ccl=$exe_ccl' || '' }} \
+               pkg=dbs26-${{ steps.id.outputs.build }} \
+               src="args.c dbs26.c" >> "$GITHUB_OUTPUT"
 
-    - name: Get available compilers
+        ${{ steps.id.outputs.cross_Windows && '
+        echo "WINEDEBUG=-all" >> "$GITHUB_ENV"
+        MSVC_DIR="$GITHUB_WORKSPACE/msvc-wine"
+        SDK_PATH="winsdk"
+        DL_CACHE="$SDK_PATH/cache"
+        MSVC_SDK="$GITHUB_WORKSPACE/$SDK_PATH"
+        printf "%s\n" \
+               sdk_path="$SDK_PATH" \
+               dl_cache="$DL_CACHE" \
+               msvc_dir="$MSVC_DIR" \
+               msvc_sdk="$MSVC_SDK" \
+               msvc_bin="$MSVC_SDK/bin/x64" >> "$GITHUB_OUTPUT"
+        ' || '' }}
+
+        build_dir="$GITHUB_WORKSPACE/build"
+        printf "%s\n" \
+               abs_exe="$build_dir/$exe" \
+               ${{ env.cl && 'abs_exe_cl="$build_dir/$exe_cl"' || ''}} \
+               ${{ env.ccl && 'abs_exe_ccl="$build_dir/$exe_ccl"' || ''}} \
+               build_dir="$build_dir" \
+               build_type="${{ env.build_type }}" >> "$GITHUB_OUTPUT"
+
+    - name: Plan build
+      id: f
+      env:
+        pre_update_on_Linux_for_Windows: |
+          #sudo mkdir -pm755 /etc/apt/keyrings
+          #wget -qO- https://dl.winehq.org/wine-builds/winehq.key | \
+          #sudo gpg --dearmor -o /etc/apt/keyrings/winehq-archive.key -
+          #wget -qO- https://dl.winehq.org/wine-builds/ubuntu/dists/noble/winehq-noble.sources | \
+          #sudo tee /etc/apt/sources.list.d/winehq.sources > /dev/null
+          #sudo dpkg --add-architecture i386
+        update_on_Linux: |
+          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble main" | \
+          sudo tee /etc/apt/sources.list.d/apt.llvm.org.list > /dev/null
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | \
+          sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc > /dev/null
+          sudo apt-get update
+        post_update_native_Linux: |
+          sudo apt-get purge -y firefox snapd
+          #sudo apt-get upgrade -y
+
+        pre_update_on_macOS: |
+          brew update
+        update_native_macOS: |
+          #brew upgrade
+        post_update_on_macOS: |
+          brew install bash
+
+        cache_cross_Windows: |
+          mkdir -p "$MSVC_SDK/cache"
+          "$MSVC_DIR/vsdownload.py" --skip-recommended --msvc-version=17.13 --sdk-version=10.0.26100 --accept-license --save-manifest --architecture=x64 --host-arch=x64 --only-host=yes --print-version || true
+          manifest=$(ls -1tr | grep '\.manifest$' | tail -1) || true
+          "$MSVC_DIR/vsdownload.py" --skip-recommended --msvc-version=17.13 --sdk-version=10.0.26100 --accept-license --manifest="$manifest" --architecture=x64 --host-arch=x64 --only-host=yes --print-hashes | LC_ALL=C sort > tmp.txt
+          key3=$(${{ steps.id.outputs.on_macOS && 'shasum' || 'sha1sum' }} tmp.txt)
+          key3="MSVC-${manifest%\.manifest}-${key3::40}"
+          key2="${key3%-*}"
+          key1="${key2%\.*}"
+          key0="${key1%\.*}"
+          echo "key3=$key3" >> "$GITHUB_OUTPUT"
+          [[ "$key2" == "$key3" ]] || echo "key2=$key2" >> "$GITHUB_OUTPUT"
+          [[ "$key1" == "$key2" ]] || echo "key1=$key1" >> "$GITHUB_OUTPUT"
+          [[ "$key0" == "$key1" ]] || echo "key0=$key0" >> "$GITHUB_OUTPUT"
+          echo "manifest=$manifest" >> "$GITHUB_OUTPUT"
+        pre_depends_on_Linux_for_Windows: |
+          sudo apt-get install -y msitools winbind wine wine64
+        pre_depends_on_macOS_for_Windows: |
+          brew install msitools wine-stable
+
+        depends_cross_Windows: |
+          if [[ "$cache_miss" ]]; then
+            printf '\033[1;33mDownloading MSVC SDK\033[m\n'
+            if [[ -d "$MSVC_SDK" ]]; then
+              PREV_SDK="$MSVC_SDK.old"
+              mv "$MSVC_SDK" "$PREV_SDK"
+            else
+              unset PREV_SDK
+            fi
+            mkdir -p "$MSVC_SDK/cache"
+            "$MSVC_DIR/vsdownload.py" --skip-recommended --msvc-version=17.13 --sdk-version=10.0.26100 --accept-license --manifest="$manifest" --architecture=x64 --host-arch=x64 --only-host=yes --cache="$MSVC_SDK/cache"${PREV_SDK:+ --migrate="$PREV_SDK/cache"} --only-download
+            if [[ "$PREV_SDK" ]]; then
+              rm -rf "$PREV_SDK"
+              unset PREV_SDK
+            fi
+          fi
+          printf '\033[1;32mInstalling MSVC SDK\033[m\n'
+          "$MSVC_DIR/vsdownload.py" --skip-recommended --msvc-version=17.13 --sdk-version=10.0.26100 --accept-license --manifest="$manifest" --architecture=x64 --host-arch=x64 --only-host=yes --dest="$MSVC_SDK" --cache="$MSVC_SDK/cache"
+          "$MSVC_DIR/install.sh" "$MSVC_SDK"
+        depends_native_Linux: |
+          sudo apt-get install -y clang clang-21 lld lld-21 llvm-21-linker-tools
+
+        post_depends_on_Linux_for_Windows: |
+          sudo apt-get purge -y firefox snapd
+          #sudo apt-get upgrade -y
+          sudo apt-get install -y clang clang-21 lld lld-21 llvm-21-linker-tools python3
+
+        post_depends_on_macOS: |
+          brew install coreutils gnu-sed
+          echo "$(brew --prefix)/opt/coreutils/libexec/gnubin:$(brew --prefix)/opt/gnu-sed/libexec/gnubin" >> "$GITHUB_PATH"
+        post_depends_on_macOS_for_Windows: |
+          #brew upgrade
+          brew install llvm lld binutils
+          echo "$(brew --prefix)/opt/llvm/bin:$(brew --prefix)/opt/binutils/bin" >> "$GITHUB_PATH"
+
+        pre_compile: |
+          mkdir -p "${{ steps.cfg.outputs.build_dir }}"
+        compile_native_Linux: |
+          "${{ steps.cfg.outputs.cc }}" ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
+          strip --strip-all "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}"
+        compile_native_macOS: |
+          "${{ steps.cfg.outputs.cc }}" -arch arm64 ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}-arm64" ${{ steps.cfg.outputs.src }}
+          "${{ steps.cfg.outputs.cc }}" -arch x86_64 ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}-x86_64" ${{ steps.cfg.outputs.src }}
+          lipo -create -output "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}" "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}-arm64" "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}-x86_64"
+        compile_cross_Windows: |
+          BIN="$MSVC_BIN" . "$MSVC_DIR/msvcenv-native.sh"
+          export PATH="$MSVC_BIN:$PATH"
+          "${{ steps.cfg.outputs.cc }}" --target=$TARGET_TRIPLE ${{ steps.cfg.outputs.cflags }} -o "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
+          "${{ steps.cfg.outputs.cl }}" /nologo /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe_cl }}" ${{ steps.cfg.outputs.src }}
+        post_compile_on_Linux_for_Windows: |
+          "${{ steps.cfg.outputs.ccl }}" -nologo /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "${{ steps.cfg.outputs.build_dir }}/${{ steps.cfg.outputs.exe_ccl }}" -fuse-ld=lld ${{ steps.cfg.outputs.src }}
+
+        pre_validate: |
+          try() {
+            ${{ steps.cfg.outputs.maybe_use_wine }}
+            "$@" -o -     | sha1sum       ; rm -f "$out"
+            "$@" -o "$out"; sha1sum "$out"; rm -f "$out"
+          }
+        validate_native_Linux: |
+          try ./${{ steps.cfg.outputs.exe }}
+        validate_native_macOS: |
+          try arch -arm64 ./${{ steps.cfg.outputs.exe }}
+          try arch -x86_64 ./${{ steps.cfg.outputs.exe }}
+        validate_cross_Windows: |
+          try ./${{ steps.cfg.outputs.exe }}
+          try ./${{ steps.cfg.outputs.exe_cl }}
+        post_validate_on_Linux_for_Windows: |
+          try ./${{ steps.cfg.outputs.exe_ccl }}
+
+        type: ${{ steps.cfg.outputs.build_type }}
+        on_for: |
+          f="${x}_on_${{ runner.os }}_for_${{ matrix.os }}"
+          y="${!f}"
+          [[ -z "${y// /}" ]] || {
+            printf -vfn -- '%s\n%s' "$fn" "$y"
+            continue
+          }
+      run: |
+        plan() {
+          local fn='' x f y
+          for x in pre_$1 $1 post_$1; do
+            f="${x}_on_${{ runner.os }}"
+            y="${!f}"
+            [[ -z "${y// /}" ]] || {
+              printf -vfn -- '%s\n%s' "$fn" "$y"
+            }
+            ${{ steps.id.outputs.cross && env.on_for || '' }}
+            f="${x}_${{ env.type }}_${{ matrix.os }}"
+            y="${!f}"
+            [[ -z "${y// /}" ]] || {
+              printf -vfn -- '%s\n%s' "$fn" "$y"
+              continue
+            }
+            f="${x}_${{ env.type }}"
+            y="${!f}"
+            [[ -z "${y// /}" ]] || {
+              printf -vfn -- '%s\n%s' "$fn" "$y"
+              continue
+            }
+            y="${!x}"
+            [[ -z "${y// /}" ]] || {
+              printf -vfn -- '%s\n%s' "$fn" "$y"
+            }
+          done
+          x=($fn)
+          y=${x[*]}
+          [[ "${y// /}" ]] || return 0
+          printf -vfn -- 'do_%s() {%s\n}\n' "$1" "$fn"
+          unset -f "do_$1"
+          eval "$fn"
+          printf -vfn -- '%s\n' "$(declare -f "do_$1")"
+          unset -f "do_$1"
+          printf '%s' "$fn" | sed -E $'s/^/\| \033['"$2"$'m/;s/$/\033[m/'
+          printf -vfn -- '%s%s\n' "$fn" "do_$1"
+          printf '%s<<EOF\n%s\nEOF\n' "$1" "$fn" >> "$GITHUB_OUTPUT"
+        }
+
+        plan update   '1;35'
+        plan cache    '1;36'
+        plan depends  '1;34'
+        plan compile  '1;33'
+        plan validate '1;32'
+
+    - name: Update system
+      run: |
+        ${{ steps.f.outputs.update }}
+
+    - name: Prepare cache
+      id: cache
+      env:
+        MSVC_DIR: ${{ steps.cfg.outputs.msvc_dir }}
+        MSVC_SDK: ${{ steps.cfg.outputs.msvc_sdk }}
+        SDK_PATH: ${{ steps.cfg.outputs.sdk_path }}
+        DL_CACHE: ${{ steps.cfg.outputs.dl_cache }}
+      run: |
+        ${{ steps.f.outputs.cache }}
+
+    - name: Cache MSVC SDK
+      if: ${{ steps.id.outputs.cross_Windows }}
+      id: cache-msvc
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.cfg.outputs.dl_cache }}
+        key: ${{ steps.cache.outputs.key3 }}
+        restore-keys: |
+          ${{ steps.cache.outputs.key2 }}
+          ${{ steps.cache.outputs.key1 }}
+          ${{ steps.cache.outputs.key0 }}
+
+    - name: Install dependencies
+      env:
+        cache_hit: ${{ steps.cache-msvc.outputs.cache-hit != 'true' && '' || '1' }}
+        cache_miss: ${{ steps.cache-msvc.outputs.cache-hit != 'true' && '1' || '' }}
+        manifest: ${{ steps.cache.outputs.manifest }}
+        MSVC_DIR: ${{ steps.cfg.outputs.msvc_dir }}
+        MSVC_SDK: ${{ steps.cfg.outputs.msvc_sdk }}
+      run: |
+        ${{ steps.f.outputs.depends }}
+
+    - name: Introspect compilers
       run: |
         set +e
         uname -a
@@ -155,35 +338,25 @@ jobs:
         done | tee compilers_gcc
 
     - name: Compile
-      working-directory: ${{ github.workspace }}/${{ env.__src_path }}
+      working-directory: ${{ github.workspace }}/src
+      env:
+        MSVC_DIR: ${{ steps.cfg.outputs.msvc_dir }}
+        MSVC_BIN: ${{ steps.cfg.outputs.msvc_bin }}
       run: |
-        mkdir -p "$__build_dir"
-        ${{ matrix.os == 'linux' && '"$__cc" $__cflags -o "$__exe" $__c_src
-        strip --strip-all "$__exe"' || '' }}
-        ${{ matrix.os == 'windows' && matrix.on == 'linux' && '
-        BIN="$__msvc_sdk_dir/bin/x64" . "$__msvc_dir/msvcenv-native.sh"
-        "$__cc" --target=x86_64-windows-msvc $__cflags -o "$__exe" $__c_src
-        cl /nologo /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /favor:AMD64 /arch:AVX2 /MT /Fe: "cl-$__executable" $__c_src' || '' }}
-        ${{ matrix.os == 'macos' && '"$__cc" -arch arm64 $__cflags -o "$__exe-arm64" $__c_src
-        "$__cc" -arch x86_64 $__cflags -o "$__exe-x86_64" $__c_src
-        lipo -create -output "$__exe" "$__exe-arm64" "$__exe-x86_64"' || '' }}
+        ${{ steps.f.outputs.compile }}
 
-    - name: Archive build artifacts
+    - name: Package
       uses: actions/upload-artifact@v4
       with:
-        name: dbs26-${{ matrix.os }}
+        name: ${{ steps.cfg.outputs.pkg }}
         path: |
-          ${{ matrix.os == 'windows' && matrix.on == 'linux' && 'cl-' || '' }}${{ env.__executable }}
-          ${{ matrix.os == 'windows' && matrix.on == 'linux' && env.__executable || '' }}
-          LICENSE
-          README.md
+          ${{ steps.cfg.outputs.abs_exe }}
+          ${{ steps.cfg.outputs.abs_exe_cl }}
+          ${{ steps.cfg.outputs.abs_exe_ccl }}
 
-    - name: Verify binary output
+    - name: Validate
+      working-directory: ${{ steps.cfg.outputs.build_dir }}
+      env:
+        out: ${{ runner.temp }}/test.bin
       run: |
-        try() {
-          local f="$RUNNER_TEMP/test.bin"
-          "$@" "$__exe" -o -   | sha1sum     ; rm -f "$f"
-          "$@" "$__exe" -o "$f"; sha1sum "$f"; rm -f "$f"
-        }
-        ${{ matrix.os == 'windows' && matrix.on == 'linux' && 'WINEDEBUG=-all try wine64' || 'try' }}${{ matrix.os == 'macos' && ' arch -arm64
-        try arch -x86_64' || '' }}
+        ${{ steps.f.outputs.validate }}
