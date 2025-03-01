@@ -1,45 +1,66 @@
-project('dbs26', 'c',
-  version : '0.0.1',
-  default_options : ['warning_level=3'])
+project(
+	'dbs26', 'c',
+	version : '0.0.1',
+	default_options : ['warning_level=3'],
+	meson_version : '>=1.1.0')
 
-executable('dbs26',
-           'src/args.c',
-           'src/dbs26.c',
-           install : true)
+env = environment()
+host_cc = meson.get_compiler('c', native: false)
+build_cc = meson.get_compiler('c', native: true)
+host_cpu = host_machine.cpu_family()
+build_cpu = build_machine.cpu_family()
+host_sys = host_machine.system()
+build_sys = build_machine.system()
 
-summary({
-  'prefix': get_option('prefix'),
-  'bindir': get_option('bindir'),
-  'includedir': get_option('includedir'),
-  'libdir': get_option('libdir'),
-  'mandir': get_option('mandir'),
-  'sysconfdir': get_option('sysconfdir'),
-}, section: 'Directories')
+if host_sys == 'windows' and host_cc.get_id() == 'msvc'
+	msvc_path = get_option('msvc_path')
+	if msvc_path != ''
+		if host_cpu == 'x86_64'
+			msvc_bin = msvc_path + '/bin/x64'
+		elif host_cpu == 'aarch64'
+			msvc_bin = msvc_path + '/bin/arm64'
+		else
+			msvc_bin = msvc_path + '/bin/' + host_cpu
+		endif
+		env.prepend('PATH', msvc_bin)
+	endif
 
-hcc = meson.get_compiler('c', native: false)
-hsys = host_machine.cpu() + '-' + host_machine.system()
-hcom = hcc.get_id() + ' ' + hcc.version() + ' / ' + hcc.get_linker_id()
-
-summary({
-  'platform': hsys,
-  'compiler': hcom
-}, section: 'Host')
-
-if meson.is_cross_build()
-  bcc = meson.get_compiler('c', native: true)
-  bsys = build_machine.cpu() + '-' + build_machine.system()
-  bcom = bcc.get_id() + ' ' + bcc.version() + ' / ' + bcc.get_linker_id()
-  summary({
-    'platform': bsys,
-    'compiler': bcom
-  }, section: 'Build host')
+	add_project_arguments(
+		'/utf-8', '/nologo',
+		'/TC', '/std:clatest',
+		'/experimental:c11atomics',
+		'/Oi', '/GL', '/GF', '/Zo-',
+		language: 'c', native: false)
+	add_project_link_arguments(
+		'/LTCG',
+		language: 'c', native: false)
 endif
 
-#hstd = hcc.first_supported_argument(
-#  '-std=gnu23', '-std=c23', '-std=gnu2x', '-std=c2x',
-#  '-std=gnu18', '-std=c18', '-std=gnu17', '-std=c17',
-#  '-std=gnu11', '-std=c11', '-std=gnu1x', '-std=c1x')
-#bstd = bcc.first_supported_argument(
-#  '-std=gnu23', '-std=c23', '-std=gnu2x', '-std=c2x',
-#  '-std=gnu18', '-std=c18', '-std=gnu17', '-std=c17',
-#  '-std=gnu11', '-std=c11', '-std=gnu1x', '-std=c1x')
+executable(
+	'dbs26',
+	'src/args.c',
+	'src/dbs26.c',
+	install : true)
+
+summary({
+	'prefix': get_option('prefix'),
+	'bindir': get_option('bindir'),
+	'includedir': get_option('includedir'),
+	'libdir': get_option('libdir'),
+	'mandir': get_option('mandir'),
+	'sysconfdir': get_option('sysconfdir'),
+	'msvc_path': msvc_path,
+}, section: 'Directories')
+
+
+summary({
+	'platform': host_cpu + '-' + host_sys,
+	'compiler': host_cc.get_id() + ' ' + host_cc.version() + ' / ' + host_cc.get_linker_id()
+}, section: meson.is_cross_build() ? 'Host machine' : 'Machine')
+
+if meson.is_cross_build()
+	summary({
+		'platform': build_cpu + '-' + build_sys,
+		'compiler': build_cc.get_id() + ' ' + build_cc.version() + ' / ' + build_cc.get_linker_id()
+	}, section: 'Build machine')
+endif

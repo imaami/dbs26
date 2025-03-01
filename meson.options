@@ -1,0 +1,1 @@
+option('msvc_path', type: 'string', value: '/opt/msvc')
