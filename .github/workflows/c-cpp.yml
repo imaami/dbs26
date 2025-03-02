@@ -225,7 +225,7 @@ jobs:
           lipo -create -output "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-arm64" "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-x86_64"
         compile_cross_Windows: |
           BIN="$MSVC_BIN" . "$MSVC_GIT/msvcenv-native.sh"
-          meson setup "$BUILD_DIR" "$GITHUB_WORKSPACE" --cross-file={"$MSVC_SDK/msvc",$(uname -m),wine}.ini --optimization=3
+          meson setup "$BUILD_DIR" "$GITHUB_WORKSPACE" --cross-file={"$MSVC_SDK/msvc","$GITHUB_WORKSPACE"/{$(uname -m),wine}}.ini --optimization=3
           meson compile -C "$BUILD_DIR"
           mv "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" "$BUILD_DIR/${{ steps.cfg.outputs.exe_cl }}"
           export PATH="$MSVC_BIN:$PATH"
