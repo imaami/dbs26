@@ -222,6 +222,7 @@ jobs:
           "${{ steps.cfg.outputs.cc }}" -arch x86_64 $CFLAGS -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-x86_64" ${{ steps.cfg.outputs.src }}
           lipo -create -output "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-arm64" "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-x86_64"
         compile_cross_Windows: |
+          export WINEPATH
           meson setup "$BUILD_DIR" "$GITHUB_WORKSPACE" --cross-file="$GITHUB_WORKSPACE"/{ci,msvc,x86_64,wine}.ini --optimization=3
           meson compile -C "$BUILD_DIR"
           mv "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" "$BUILD_DIR/${{ steps.cfg.outputs.exe_cl }}"
