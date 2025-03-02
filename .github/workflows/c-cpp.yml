@@ -36,15 +36,6 @@ jobs:
         _cross_: ${{ matrix.os != runner.os && '=cross_' || '' }}${{ matrix.os != runner.os && matrix.os || '' }}
         type: ${{ matrix.os == runner.os && 'native' || 'cross' }}
       run: |
-        uname -a || true
-        uname -s || true
-        uname -n || true
-        uname -r || true
-        uname -v || true
-        uname -m || true
-        uname -p || true
-        uname -i || true
-        uname -o || true
         printf '%s\n' \
                "on_${{ runner.os }}=on_${{ runner.os }}" \
                "${{ matrix.os }}=${{ matrix.os }}" \
@@ -143,9 +134,9 @@ jobs:
           echo "path=${MSVC_CACHE#$GITHUB_WORKSPACE/}" >> "$GITHUB_OUTPUT"
 
         pre_depends_cross_Windows_on_Linux: |
-          sudo apt-get install -y msitools winbind wine wine64
+          sudo apt-get install -y msitools winbind wine wine64 dos2unix
         pre_depends_cross_Windows_on_macOS: |
-          brew install --quiet msitools wine-stable
+          brew install --quiet msitools wine-stable dos2unix
 
         depends_cross_Windows: |
           local OLD_CACHE=''
@@ -155,8 +146,9 @@ jobs:
               OLD_CACHE="$MSVC_CACHE.old"
               mv "$MSVC_CACHE" "$OLD_CACHE"
             fi
+          else
+            printf '\033[1;32mInstalling MSVC SDK\033[m\n'
           fi
-          printf '\033[1;32mInstalling MSVC SDK\033[m\n'
           mkdir -p "$MSVC_CACHE" "$MSVC_SDK"
           "$MSVC_GIT/vsdownload.py" --accept-license --architecture=x64 --host-arch=x64 --only-host=yes --preview --manifest="$MANIFEST" --cache="$MSVC_CACHE"${OLD_CACHE:+ --migrate="$OLD_CACHE"} --dest="$MSVC_SDK"
           if [[ "$OLD_CACHE" && -d "$OLD_CACHE" ]]; then
@@ -164,7 +156,6 @@ jobs:
           fi
           unset OLD_CACHE
           "$MSVC_GIT/install.sh" "$MSVC_SDK"
-          cp "$GITHUB_WORKSPACE/msvc.ini" "$MSVC_SDK/"
 
         post_depends_on_Linux: |
           sudo apt-get install -y clang clang-21 lld lld-21 llvm-21-linker-tools
@@ -177,6 +168,15 @@ jobs:
         post_depends_cross_Windows_on_macOS: |
           brew install --quiet llvm lld binutils meson
           echo "$(brew --prefix)/opt/llvm/bin:$(brew --prefix)/opt/binutils/bin" >> "$GITHUB_PATH"
+
+        pre_introspect_cross_Windows: |
+          local msvc_version=$(dos2unix < "$MSVC_SDK/VC/Auxiliary/Build/Microsoft.VCToolsVersion.default.txt")
+          local winepath="${msvc_version:+$MSVC_SDK/VC/Tools/MSVC/$msvc_version/bin/Hostx64/x64}"
+          set -- $(command -v wine64 wine-stable wine 2>/dev/null || true)
+          printf '%s\n' \
+                 host_wine="$1" \
+                 winepath="$winepath" \
+                 msvc_version="$msvc_version" >> "$GITHUB_OUTPUT"
 
         introspect: |
           set +e
@@ -206,16 +206,14 @@ jobs:
           done | tee compilers_gcc
 
         pre_compile: |
-          uname -a || true
-          uname -s || true
-          uname -n || true
-          uname -r || true
-          uname -v || true
-          uname -m || true
-          uname -p || true
-          uname -i || true
-          uname -o || true
           mkdir -p "$BUILD_DIR"
+        pre_compile_cross_Windows: |
+          local crossfile
+          printf -v crossfile -- '%s = %s\n' \
+                 host_wine "$host_wine" \
+                 msvc_sdk "$MSVC_SDK" \
+                 msvc_version "$msvc_version"
+          printf '[constants]\n%s' "$crossfile" > "$GITHUB_WORKSPACE/ci.ini"
         compile_native_Linux: |
           "${{ steps.cfg.outputs.cc }}" $CFLAGS -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
           strip --strip-all "$BUILD_DIR/${{ steps.cfg.outputs.exe }}"
@@ -224,10 +222,10 @@ jobs:
           "${{ steps.cfg.outputs.cc }}" -arch x86_64 $CFLAGS -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-x86_64" ${{ steps.cfg.outputs.src }}
           lipo -create -output "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-arm64" "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-x86_64"
         compile_cross_Windows: |
-          BIN="$MSVC_BIN" . "$MSVC_GIT/msvcenv-native.sh"
-          meson setup "$BUILD_DIR" "$GITHUB_WORKSPACE" --cross-file={"$MSVC_SDK/msvc","$GITHUB_WORKSPACE"/{$(uname -m),wine}}.ini --optimization=3
+          meson setup "$BUILD_DIR" "$GITHUB_WORKSPACE" --cross-file="$GITHUB_WORKSPACE"/{ci,msvc,x86_64,wine}.ini --optimization=3
           meson compile -C "$BUILD_DIR"
           mv "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" "$BUILD_DIR/${{ steps.cfg.outputs.exe_cl }}"
+          BIN="$MSVC_BIN" . "$MSVC_GIT/msvcenv-native.sh"
           export PATH="$MSVC_BIN:$PATH"
           "${{ steps.cfg.outputs.cc }}" --target=$TARGET_TRIPLE $CFLAGS -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
         post_compile_cross_Windows_on_Linux: |
@@ -354,6 +352,9 @@ jobs:
         ${{ steps.f.outputs.depends }}
 
     - name: Introspect
+      id: introspect
+      env:
+        MSVC_SDK: ${{ steps.cfg.outputs.msvc_sdk }}
       run: |
         ${{ steps.f.outputs.introspect }}
 
@@ -365,6 +366,9 @@ jobs:
         MSVC_BIN: ${{ steps.cfg.outputs.msvc_bin }}
         MSVC_GIT: ${{ steps.cfg.outputs.msvc_git }}
         MSVC_SDK: ${{ steps.cfg.outputs.msvc_sdk }}
+        WINEPATH: ${{ steps.introspect.outputs.winepath }}
+        host_wine: ${{ steps.introspect.outputs.host_wine }}
+        msvc_version: ${{ steps.introspect.outputs.msvc_version }}
       run: |
         ${{ steps.f.outputs.compile }}
 
