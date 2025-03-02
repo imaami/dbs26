@@ -210,9 +210,9 @@ jobs:
         pre_compile_cross_Windows: |
           local crossfile
           printf -v crossfile -- '%s = %s\n' \
-                 host_wine "$host_wine" \
-                 msvc_sdk "$MSVC_SDK" \
-                 msvc_version "$msvc_version"
+                 host_wine "[ '$host_wine' ]" \
+                 msvc_sdk "'$MSVC_SDK'" \
+                 msvc_version "'$msvc_version'"
           printf '[constants]\n%s' "$crossfile" > "$GITHUB_WORKSPACE/ci.ini"
         compile_native_Linux: |
           "${{ steps.cfg.outputs.cc }}" $CFLAGS -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
