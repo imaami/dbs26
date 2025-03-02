@@ -364,6 +364,7 @@ jobs:
         CFLAGS: ${{ steps.cfg.outputs.cflags }}
         MSVC_BIN: ${{ steps.cfg.outputs.msvc_bin }}
         MSVC_GIT: ${{ steps.cfg.outputs.msvc_git }}
+        MSVC_SDK: ${{ steps.cfg.outputs.msvc_sdk }}
       run: |
         ${{ steps.f.outputs.compile }}
 
