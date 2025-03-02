@@ -1,8 +1,12 @@
 project(
 	'dbs26', 'c',
 	version : '0.0.1',
-	default_options : ['warning_level=3'],
-	meson_version : '>=1.1.0')
+	meson_version : '>=1.1.0',
+	default_options : [
+		'warning_level=everything', 'strip=true',
+		'buildtype=release', 'debug=false'
+	],
+)
 
 env = environment()
 host_cc = meson.get_compiler('c', native: false)
@@ -12,28 +16,16 @@ build_cpu = build_machine.cpu_family()
 host_sys = host_machine.system()
 build_sys = build_machine.system()
 
-if host_sys == 'windows' and host_cc.get_id() == 'msvc'
-	msvc_path = get_option('msvc_path')
-	if msvc_path != ''
-		if host_cpu == 'x86_64'
-			msvc_bin = msvc_path + '/bin/x64'
-		elif host_cpu == 'aarch64'
-			msvc_bin = msvc_path + '/bin/arm64'
-		else
-			msvc_bin = msvc_path + '/bin/' + host_cpu
-		endif
-		env.prepend('PATH', msvc_bin)
-	endif
-
+if host_cc.get_id() == 'msvc'
 	add_project_arguments(
 		'/utf-8', '/nologo',
 		'/TC', '/std:clatest',
 		'/experimental:c11atomics',
 		'/Oi', '/GL', '/GF', '/Zo-',
-		language: 'c', native: false)
+		language: 'c', native: build_cc.get_id() == 'msvc')
 	add_project_link_arguments(
 		'/LTCG',
-		language: 'c', native: false)
+		language: 'c', native: build_cc.get_id() == 'msvc')
 endif
 
 executable(
@@ -49,7 +41,6 @@ summary({
 	'libdir': get_option('libdir'),
 	'mandir': get_option('mandir'),
 	'sysconfdir': get_option('sysconfdir'),
-	'msvc_path': msvc_path,
 }, section: 'Directories')
 
 
