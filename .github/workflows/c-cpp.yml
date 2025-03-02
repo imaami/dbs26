@@ -36,6 +36,15 @@ jobs:
         _cross_: ${{ matrix.os != runner.os && '=cross_' || '' }}${{ matrix.os != runner.os && matrix.os || '' }}
         type: ${{ matrix.os == runner.os && 'native' || 'cross' }}
       run: |
+        uname -a || true
+        uname -s || true
+        uname -n || true
+        uname -r || true
+        uname -v || true
+        uname -m || true
+        uname -p || true
+        uname -i || true
+        uname -o || true
         printf '%s\n' \
                "on_${{ runner.os }}=on_${{ runner.os }}" \
                "${{ matrix.os }}=${{ matrix.os }}" \
@@ -155,15 +164,18 @@ jobs:
           fi
           unset OLD_CACHE
           "$MSVC_GIT/install.sh" "$MSVC_SDK"
+          cp "$GITHUB_WORKSPACE/msvc.ini" "$MSVC_SDK/"
 
         post_depends_on_Linux: |
           sudo apt-get install -y clang clang-21 lld lld-21 llvm-21-linker-tools
+        post_depends_cross_Windows_on_Linux: |
+          sudo apt-get install -y meson-1.5
 
         post_depends_on_macOS: |
           brew install --quiet coreutils gnu-sed
           echo "$(brew --prefix)/opt/coreutils/libexec/gnubin:$(brew --prefix)/opt/gnu-sed/libexec/gnubin" >> "$GITHUB_PATH"
         post_depends_cross_Windows_on_macOS: |
-          brew install --quiet llvm lld binutils
+          brew install --quiet llvm lld binutils meson
           echo "$(brew --prefix)/opt/llvm/bin:$(brew --prefix)/opt/binutils/bin" >> "$GITHUB_PATH"
 
         introspect: |
@@ -194,6 +206,15 @@ jobs:
           done | tee compilers_gcc
 
         pre_compile: |
+          uname -a || true
+          uname -s || true
+          uname -n || true
+          uname -r || true
+          uname -v || true
+          uname -m || true
+          uname -p || true
+          uname -i || true
+          uname -o || true
           mkdir -p "$BUILD_DIR"
         compile_native_Linux: |
           "${{ steps.cfg.outputs.cc }}" $CFLAGS -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
@@ -204,9 +225,11 @@ jobs:
           lipo -create -output "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-arm64" "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-x86_64"
         compile_cross_Windows: |
           BIN="$MSVC_BIN" . "$MSVC_GIT/msvcenv-native.sh"
+          meson setup "$BUILD_DIR" --cross-file={"$MSVC_SDK/msvc,$(uname -m),wine"}.ini --optimization=3
+          meson compile -C "$BUILD_DIR"
+          mv "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" "$BUILD_DIR/${{ steps.cfg.outputs.exe_cl }}"
           export PATH="$MSVC_BIN:$PATH"
           "${{ steps.cfg.outputs.cc }}" --target=$TARGET_TRIPLE $CFLAGS -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
-          "${{ steps.cfg.outputs.cl }}" /nologo /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "$BUILD_DIR/${{ steps.cfg.outputs.exe_cl }}" ${{ steps.cfg.outputs.src }}
         post_compile_cross_Windows_on_Linux: |
           "${{ steps.cfg.outputs.ccl }}" -nologo /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "$BUILD_DIR/${{ steps.cfg.outputs.exe_ccl }}" -fuse-ld=lld ${{ steps.cfg.outputs.src }}
 
