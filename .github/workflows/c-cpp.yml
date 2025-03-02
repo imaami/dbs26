@@ -215,11 +215,11 @@ jobs:
                  msvc_version "'$msvc_version'"
           printf '[constants]\n%s' "$crossfile" > "$GITHUB_WORKSPACE/ci.ini"
         compile_native_Linux: |
-          "${{ steps.cfg.outputs.cc }}" $CFLAGS -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
+          "${{ steps.cfg.outputs.cc }}" $c_flags -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
           strip --strip-all "$BUILD_DIR/${{ steps.cfg.outputs.exe }}"
         compile_native_macOS: |
-          "${{ steps.cfg.outputs.cc }}" -arch arm64 $CFLAGS -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-arm64" ${{ steps.cfg.outputs.src }}
-          "${{ steps.cfg.outputs.cc }}" -arch x86_64 $CFLAGS -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-x86_64" ${{ steps.cfg.outputs.src }}
+          "${{ steps.cfg.outputs.cc }}" -arch arm64 $c_flags -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-arm64" ${{ steps.cfg.outputs.src }}
+          "${{ steps.cfg.outputs.cc }}" -arch x86_64 $c_flags -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-x86_64" ${{ steps.cfg.outputs.src }}
           lipo -create -output "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-arm64" "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-x86_64"
         compile_cross_Windows: |
           export WINEPATH
@@ -228,7 +228,7 @@ jobs:
           mv "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" "$BUILD_DIR/${{ steps.cfg.outputs.exe_cl }}"
           BIN="$MSVC_BIN" . "$MSVC_GIT/msvcenv-native.sh"
           export PATH="$MSVC_BIN:$PATH"
-          "${{ steps.cfg.outputs.cc }}" --target=$TARGET_TRIPLE $CFLAGS -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
+          "${{ steps.cfg.outputs.cc }}" --target=$TARGET_TRIPLE $c_flags -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
         post_compile_cross_Windows_on_Linux: |
           "${{ steps.cfg.outputs.ccl }}" -nologo /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "$BUILD_DIR/${{ steps.cfg.outputs.exe_ccl }}" -fuse-ld=lld ${{ steps.cfg.outputs.src }}
 
@@ -363,7 +363,7 @@ jobs:
       working-directory: ${{ github.workspace }}/src
       env:
         BUILD_DIR: ${{ steps.cfg.outputs.build_dir }}
-        CFLAGS: ${{ steps.cfg.outputs.cflags }}
+        c_flags: ${{ steps.cfg.outputs.cflags }}
         MSVC_BIN: ${{ steps.cfg.outputs.msvc_bin }}
         MSVC_GIT: ${{ steps.cfg.outputs.msvc_git }}
         MSVC_SDK: ${{ steps.cfg.outputs.msvc_sdk }}
