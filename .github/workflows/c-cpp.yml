@@ -223,16 +223,24 @@ jobs:
           lipo -create -output "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-arm64" "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-x86_64"
         compile_cross_Windows: |
           echo "WINEPATH=$winepath"
-          WINEPATH="$(winepath -w "$winepath")" meson setup "$BUILD_DIR" "$GITHUB_WORKSPACE" --optimization=3 \
-                                                      --cross-file="$GITHUB_WORKSPACE"/{ci,msvc,x86_64,wine}.ini || {
+
+          local INCLUDE LIB q arch=x64 win11sdk=10.0.26100.0
+          local p=$(winepath -w "$MSVC_SDK/Windows Kits/10")
+          for q in ucrt um; do
+            INCLUDE+="$p\\Include\\$win11sdk\\$q;"
+            LIB+="$p\\Lib\\$win11sdk\\$q\\$arch;"
+          done
+          p=$(winepath -w "$MSVC_SDK/VC/Tools/MSVC/$msvc_version")
+          INCLUDE+="$p\\include"
+          LIB+="$p\\lib\\$arch"
+
+          INCLUDE="$INCLUDE" LIB="$LIB" WINEPATH="$(winepath -w "$winepath")" \
+          meson setup "$BUILD_DIR" "$GITHUB_WORKSPACE" --optimization=3       \
+                --cross-file="$GITHUB_WORKSPACE"/{ci,msvc,x86_64,wine}.ini || {
             cat "$BUILD_DIR/meson-logs/meson-log.txt"
-            find "$MSVC_SDK" -type f -iname 'msvcrt.lib'
-            local before=$(env | LC_ALL=C sort)
-            BIN="$MSVC_BIN" . "$MSVC_GIT/msvcenv-native.sh"
-            local after=$(env | LC_ALL=C sort)
-            git diff -U0 --color=always --no-index --ignore-all-space --ignore-space-at-eol --ignore-blank-lines <(echo "$before") <(echo "$after")
             false
           }
+          INCLUDE="$INCLUDE" LIB="$LIB" WINEPATH="$(winepath -w "$winepath")" \
           meson compile -C "$BUILD_DIR"
           mv "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" "$BUILD_DIR/${{ steps.cfg.outputs.exe_cl }}"
           BIN="$MSVC_BIN" . "$MSVC_GIT/msvcenv-native.sh"
