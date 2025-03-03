@@ -235,7 +235,7 @@ jobs:
           LIB+=";$p\\lib\\$arch
 
           INCLUDE="$INCLUDE" LIB="$LIB" WINEPATH="Z:${winepath//\//\\}"       \
-          meson setup "$BUILD_DIR" "$GITHUB_WORKSPACE" --suffix=true          \
+          meson setup "$BUILD_DIR" "$GITHUB_WORKSPACE" -Dsuffix=true          \
                 --cross-file="$GITHUB_WORKSPACE"/{ci,msvc,x86_64,wine}.ini || {
             cat "$BUILD_DIR/meson-logs/meson-log.txt"
             false
