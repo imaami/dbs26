@@ -224,25 +224,23 @@ jobs:
         compile_cross_Windows: |
           echo "WINEPATH=$winepath"
 
-          local INCLUDE LIB q arch=x64 win11sdk=10.0.26100.0
-          local p=$(winepath -w "$MSVC_SDK/Windows Kits/10")
-          for q in ucrt um; do
-            INCLUDE+="$p\\Include\\$win11sdk\\$q;"
-            LIB+="$p\\Lib\\$win11sdk\\$q\\$arch;"
-          done
-          INCLUDE+="$p\\Include\\$win11sdk\\shared;"
-          INCLUDE+="$p\\Include\\$win11sdk\\winrt;"
-          p=$(winepath -w "$MSVC_SDK/VC/Tools/MSVC/$msvc_version")
-          INCLUDE+="$p\\include"
-          LIB+="$p\\lib\\$arch"
+          local p="Z:${MSVC_SDK//\//\\}\\Windows Kits\\10"
+          local arch=x64 sdk=10.0.26100.0
+          local q="$p\\Lib\\$sdk"
+          p+="\\Include\\$sdk"
+          local INCLUDE="$p\\ucrt;$p\\um;$p\\shared;$p\\winrt"
+          local LIB="$q\\ucrt\\$arch;$q\\um\\$arch"
+          p="Z:${MSVC_SDK//\//\\}\\VC\\Tools\\MSVC\\$msvc_version"
+          INCLUDE+=";$p\\include"
+          LIB+=";$p\\lib\\$arch
 
-          INCLUDE="$INCLUDE" LIB="$LIB" WINEPATH="$(winepath -w "$winepath")" \
+          INCLUDE="$INCLUDE" LIB="$LIB" WINEPATH="Z:${winepath//\//\\}"       \
           meson setup "$BUILD_DIR" "$GITHUB_WORKSPACE" --suffix=true          \
                 --cross-file="$GITHUB_WORKSPACE"/{ci,msvc,x86_64,wine}.ini || {
             cat "$BUILD_DIR/meson-logs/meson-log.txt"
             false
           }
-          INCLUDE="$INCLUDE" LIB="$LIB" WINEPATH="$(winepath -w "$winepath")" \
+          INCLUDE="$INCLUDE" LIB="$LIB" WINEPATH="Z:${winepath//\//\\}" \
           meson compile -C "$BUILD_DIR"
           BIN="$MSVC_BIN" . "$MSVC_GIT/msvcenv-native.sh"
           export PATH="$MSVC_BIN:$PATH"
