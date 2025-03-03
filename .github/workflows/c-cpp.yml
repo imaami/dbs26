@@ -232,7 +232,7 @@ jobs:
           local LIB="$q\\ucrt\\$arch;$q\\um\\$arch"
           p="Z:${MSVC_SDK//\//\\}\\VC\\Tools\\MSVC\\$msvc_version"
           INCLUDE+=";$p\\include"
-          LIB+=";$p\\lib\\$arch
+          LIB+=";$p\\lib\\$arch"
 
           INCLUDE="$INCLUDE" LIB="$LIB" WINEPATH="Z:${winepath//\//\\}"       \
           meson setup "$BUILD_DIR" "$GITHUB_WORKSPACE" -Dsuffix=true          \
