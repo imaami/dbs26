@@ -3,12 +3,14 @@ project(
 	version : '0.0.1',
 	meson_version : '>=1.1.0',
 	default_options : [
-		'warning_level=everything', 'strip=true',
-		'buildtype=release', 'debug=false'
+		'buildtype=release',
+		'debug=false',
+		'optimization=3',
+		'strip=true',
+		'warning_level=everything',
 	],
 )
 
-env = environment()
 host_cc = meson.get_compiler('c', native: false)
 build_cc = meson.get_compiler('c', native: true)
 host_cpu = host_machine.cpu_family()
@@ -28,8 +30,14 @@ if host_cc.get_id() == 'msvc'
 		language: 'c', native: build_cc.get_id() == 'msvc')
 endif
 
+if get_option('unique_suffix')
+	exe_name = 'dbs26-' + host_cc.get_id() + '-' + host_cc.version() + '-O' + get_option('optimization')
+else
+	exe_name = 'dbs26'
+endif
+
 executable(
-	'dbs26',
+	exe_name,
 	'src/args.c',
 	'src/dbs26.c',
 	install : true)
@@ -42,7 +50,6 @@ summary({
 	'mandir': get_option('mandir'),
 	'sysconfdir': get_option('sysconfdir'),
 }, section: 'Directories')
-
 
 summary({
 	'platform': host_cpu + '-' + host_sys,

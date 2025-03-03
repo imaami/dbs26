@@ -1,0 +1,1 @@
+option('unique_suffix', type: 'boolean', value: false, description: 'Give output executables unique suffixes which identify the build settings.')
