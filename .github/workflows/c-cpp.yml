@@ -70,7 +70,7 @@ jobs:
         ${{ env.cl && 'exe_cl=dbs26-' || '' }}${{ env.cl }}${{ env.cl && env.ext || '' }}
         ${{ env.ccl && 'exe_ccl=dbs26-' || '' }}${{ env.ccl }}${{ env.ccl && env.ext || '' }}
         printf '%s\n' \
-               ${{ steps.id.outputs.cross_Windows && 'maybe_use_wine="set \$(command -v wine64 || command -v wine || command -v wine-stable || echo false) \"\$@\""' || '' }} \
+               ${{ steps.id.outputs.cross_Windows && 'maybe_use_wine="set \$(command -v wine64 || command -v wine-stable || command -v wine || echo false) \"\$@\""' || '' }} \
                cc=${{ env.cc }} \
                ${{ env.cl && 'cl=' || '' }}${{ env.cl }} \
                ${{ env.ccl && 'ccl=' || '' }}${{ env.ccl }} \
@@ -222,8 +222,17 @@ jobs:
           "${{ steps.cfg.outputs.cc }}" -arch x86_64 $c_flags -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-x86_64" ${{ steps.cfg.outputs.src }}
           lipo -create -output "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-arm64" "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-x86_64"
         compile_cross_Windows: |
-          export WINEPATH
-          meson setup "$BUILD_DIR" "$GITHUB_WORKSPACE" --cross-file="$GITHUB_WORKSPACE"/{ci,msvc,x86_64,wine}.ini --optimization=3 || { cat /home/runner/work/dbs26/dbs26/build/meson-logs/meson-log.txt ; false; }
+          echo "WINEPATH=$winepath"
+          WINEPATH="$(winepath -w "$winepath")" meson setup "$BUILD_DIR" "$GITHUB_WORKSPACE" --optimization=3 \
+                                                      --cross-file="$GITHUB_WORKSPACE"/{ci,msvc,x86_64,wine}.ini || {
+            cat "$BUILD_DIR/meson-logs/meson-log.txt"
+            find "$MSVC_SDK" -type f -iname 'msvcrt.lib'
+            local before=$(env | LC_ALL=C sort)
+            BIN="$MSVC_BIN" . "$MSVC_GIT/msvcenv-native.sh"
+            local after=$(env | LC_ALL=C sort)
+            git diff -U0 --color=always --no-index --ignore-all-space --ignore-space-at-eol --ignore-blank-lines <(echo "$before") <(echo "$after")
+            false
+          }
           meson compile -C "$BUILD_DIR"
           mv "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" "$BUILD_DIR/${{ steps.cfg.outputs.exe_cl }}"
           BIN="$MSVC_BIN" . "$MSVC_GIT/msvcenv-native.sh"
@@ -367,7 +376,7 @@ jobs:
         MSVC_BIN: ${{ steps.cfg.outputs.msvc_bin }}
         MSVC_GIT: ${{ steps.cfg.outputs.msvc_git }}
         MSVC_SDK: ${{ steps.cfg.outputs.msvc_sdk }}
-        WINEPATH: ${{ steps.introspect.outputs.winepath }}
+        winepath: ${{ steps.introspect.outputs.winepath }}
         host_wine: ${{ steps.introspect.outputs.host_wine }}
         msvc_version: ${{ steps.introspect.outputs.msvc_version }}
       run: |
