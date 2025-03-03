@@ -3,13 +3,16 @@ project(
 	version : '0.0.1',
 	meson_version : '>=1.1.0',
 	default_options : [
-		'm_arch=native',
 		'buildtype=release',
+		'b_lto=true',
+		'b_ndebug=true',
 		'debug=false',
+		'm_arch=native',
+		'm_tune=native',
 		'optimization=3',
 		'strip=true',
-		'm_tune=native',
-		'unique=true',
+		'stupid=false',
+		'suffix=false',
 		'warning_level=everything',
 	],
 )
@@ -20,6 +23,9 @@ host_cpu = host_machine.cpu_family()
 build_cpu = build_machine.cpu_family()
 host_sys = host_machine.system()
 build_sys = build_machine.system()
+
+m_arch = get_option('m_arch')
+m_tune = get_option('m_tune')
 
 if host_cc.get_id() == 'msvc'
 	add_project_arguments(
@@ -33,10 +39,33 @@ if host_cc.get_id() == 'msvc'
 		'/LTCG',
 		language: 'c',
 		native: build_cc.get_id() == 'msvc')
+else
+	if m_arch != ''
+		add_project_arguments(
+			'-march=' + m_arch,
+			language: 'c')
+	endif
+	if m_tune != ''
+		add_project_arguments(
+			'-mtune=' + m_tune,
+			language: 'c')
+	endif
 endif
 
-if get_option('unique')
-	exe_name = 'dbs26_' + host_cc.get_id() + '-' + host_cc.version() + '_O' + get_option('optimization')
+if host_cc.get_id() == 'gcc'
+	if get_option('warning_level') == 'everything'
+		add_project_arguments(
+			'-Wno-c++-compat',
+			language: 'c')
+	endif
+endif
+
+if get_option('stupid')
+	suffix_1 = '_' + host_cc.get_id() + '-' + host_cc.version() + '_-O' + get_option('optimization')
+	suffix_2 = (m_arch == '' ? '' : '_-march=') + m_arch + (m_tune == '' ? '' : '_-mtune=') + m_tune
+	exe_name = 'dbs26' + suffix_1 + suffix_2
+elif get_option('suffix')
+	exe_name = 'dbs26_' + host_cc.get_id() + '-' + host_cc.version().split('.')[0]
 else
 	exe_name = 'dbs26'
 endif
@@ -48,7 +77,7 @@ executable(
 	install : true)
 
 summary({
-	'build output': exe_name,
+	'executable': exe_name,
 	'prefix': get_option('prefix'),
 	'bindir': get_option('bindir'),
 	'includedir': get_option('includedir'),

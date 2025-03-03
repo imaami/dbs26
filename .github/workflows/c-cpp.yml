@@ -237,14 +237,13 @@ jobs:
           LIB+="$p\\lib\\$arch"
 
           INCLUDE="$INCLUDE" LIB="$LIB" WINEPATH="$(winepath -w "$winepath")" \
-          meson setup "$BUILD_DIR" "$GITHUB_WORKSPACE" --optimization=3       \
+          meson setup "$BUILD_DIR" "$GITHUB_WORKSPACE" --suffix=true          \
                 --cross-file="$GITHUB_WORKSPACE"/{ci,msvc,x86_64,wine}.ini || {
             cat "$BUILD_DIR/meson-logs/meson-log.txt"
             false
           }
           INCLUDE="$INCLUDE" LIB="$LIB" WINEPATH="$(winepath -w "$winepath")" \
           meson compile -C "$BUILD_DIR"
-          mv "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" "$BUILD_DIR/${{ steps.cfg.outputs.exe_cl }}"
           BIN="$MSVC_BIN" . "$MSVC_GIT/msvcenv-native.sh"
           export PATH="$MSVC_BIN:$PATH"
           "${{ steps.cfg.outputs.cc }}" --target=$TARGET_TRIPLE $c_flags -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
