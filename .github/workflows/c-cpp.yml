@@ -230,6 +230,8 @@ jobs:
             INCLUDE+="$p\\Include\\$win11sdk\\$q;"
             LIB+="$p\\Lib\\$win11sdk\\$q\\$arch;"
           done
+          INCLUDE+="$p\\Include\\$win11sdk\\shared;"
+          INCLUDE+="$p\\Include\\$win11sdk\\winrt;"
           p=$(winepath -w "$MSVC_SDK/VC/Tools/MSVC/$msvc_version")
           INCLUDE+="$p\\include"
           LIB+="$p\\lib\\$arch"
