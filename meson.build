@@ -3,10 +3,13 @@ project(
 	version : '0.0.1',
 	meson_version : '>=1.1.0',
 	default_options : [
+		'm_arch=native',
 		'buildtype=release',
 		'debug=false',
 		'optimization=3',
 		'strip=true',
+		'm_tune=native',
+		'unique=true',
 		'warning_level=everything',
 	],
 )
@@ -24,14 +27,16 @@ if host_cc.get_id() == 'msvc'
 		'/TC', '/std:clatest',
 		'/experimental:c11atomics',
 		'/Oi', '/GL', '/GF', '/Zo-',
-		language: 'c', native: build_cc.get_id() == 'msvc')
+		language: 'c',
+		native: build_cc.get_id() == 'msvc')
 	add_project_link_arguments(
 		'/LTCG',
-		language: 'c', native: build_cc.get_id() == 'msvc')
+		language: 'c',
+		native: build_cc.get_id() == 'msvc')
 endif
 
-if get_option('unique_suffix')
-	exe_name = 'dbs26-' + host_cc.get_id() + '-' + host_cc.version() + '-O' + get_option('optimization')
+if get_option('unique')
+	exe_name = 'dbs26_' + host_cc.get_id() + '-' + host_cc.version() + '_O' + get_option('optimization')
 else
 	exe_name = 'dbs26'
 endif
@@ -43,6 +48,7 @@ executable(
 	install : true)
 
 summary({
+	'build output': exe_name,
 	'prefix': get_option('prefix'),
 	'bindir': get_option('bindir'),
 	'includedir': get_option('includedir'),
