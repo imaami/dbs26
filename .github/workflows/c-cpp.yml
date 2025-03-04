@@ -232,7 +232,7 @@ jobs:
           INCLUDE+=";$p\\include"
           LIB+=";$p\\lib\\$arch"
 
-          printf 'ci.ini:\n%s\nINCLUDE=%q\nLIB=%q\nWINEPATH=%q\n' \
+          printf 'ci.ini:\n%s\nINCLUDE=%s\nLIB=%s\nWINEPATH=%s\n' \
                  "$(sed 's,^,  ,' "$GITHUB_WORKSPACE/ci.ini")"    \
                  "$INCLUDE" "$LIB" "Z:${winepath//\//\\}"
 
