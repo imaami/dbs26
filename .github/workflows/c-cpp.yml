@@ -243,11 +243,16 @@ jobs:
           INCLUDE="$INCLUDE" LIB="$LIB" LIBPATH="$LIB" WINEPATH="$WINEPATH" \
           WINEDLLOVERRIDES="$WINEDLLOVERRIDES"                              \
           meson setup "$BUILD_DIR" "$GITHUB_WORKSPACE" -Dstupid=true        \
-                --cross-file="$GITHUB_WORKSPACE"/{ci,msvc,x86_64,wine}.ini
-
+                --cross-file="$GITHUB_WORKSPACE"/{ci,msvc,x86_64,wine}.ini || {
+            cat "$BUILD_DIR/meson-logs/meson-log.txt"
+            false
+          }
           INCLUDE="$INCLUDE" LIB="$LIB" LIBPATH="$LIB" WINEPATH="$WINEPATH" \
           WINEDLLOVERRIDES="$WINEDLLOVERRIDES"                              \
-          meson compile -C "$BUILD_DIR"
+          meson compile -C "$BUILD_DIR" || {
+            cat "$BUILD_DIR/meson-logs/meson-log.txt"
+            false
+          }
 
           BIN="$MSVC_BIN" . "$MSVC_GIT/msvcenv-native.sh"
           export PATH="$MSVC_BIN:$PATH"
