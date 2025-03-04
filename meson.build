@@ -24,9 +24,6 @@ build_cpu = build_machine.cpu_family()
 host_sys = host_machine.system()
 build_sys = build_machine.system()
 
-m_arch = get_option('m_arch')
-m_tune = get_option('m_tune')
-
 if host_cc.get_id() == 'msvc'
 	add_project_arguments(
 		'/utf-8', '/nologo',
@@ -39,12 +36,17 @@ if host_cc.get_id() == 'msvc'
 		'/LTCG',
 		language: 'c',
 		native: build_cc.get_id() == 'msvc')
+	m_arch = ''
+	m_tune = ''
 else
+	m_arch = get_option('m_arch')
 	if m_arch != ''
 		add_project_arguments(
 			'-march=' + m_arch,
 			language: 'c')
 	endif
+
+	m_tune = get_option('m_tune')
 	if m_tune != ''
 		add_project_arguments(
 			'-mtune=' + m_tune,
