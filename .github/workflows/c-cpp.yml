@@ -174,7 +174,7 @@ jobs:
           local winsdk_version=$(dos2unix < "$MSVC_SDK/Windows Kits/10/SDKManifest.xml" \
           | grep -Eo 'PlatformIdentity *= *"[^"]+"' | grep -Eo '[0-9]+(\.[0-9]+)+')
           local winepath="${msvc_version:+$MSVC_SDK/VC/Tools/MSVC/$msvc_version/bin/Hostx64/x64}"
-          winepath+="${winepath:+;$MSVC_SDK/Windows Kits/10/bin/$sdk_version/x64}"
+          winepath+="${winepath:+;$MSVC_SDK/Windows Kits/10/bin/$winsdk_version/x64}"
           set -- $(command -v wine64 wine-stable wine 2>/dev/null || true)
           printf '%s\n' \
                  host_wine="$1" \
