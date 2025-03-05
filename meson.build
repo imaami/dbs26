@@ -38,7 +38,7 @@ if host_cc.get_id() == 'msvc'
 		native: build_cc.get_id() == 'msvc')
 	m_arch = ''
 	m_tune = ''
-else
+elif host_sys != 'darwin'
 	m_arch = get_option('m_arch')
 	if m_arch != ''
 		add_project_arguments(

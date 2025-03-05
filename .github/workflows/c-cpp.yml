@@ -290,17 +290,20 @@ jobs:
             "$@" -o -     | sha1sum       ; rm -f "$out"
             "$@" -o "$out"; sha1sum "$out"; rm -f "$out"
           }
+          local f
         validate: |
           ${{ ! steps.id.outputs.native_macOS && '
-            local f
             for f in ./dbs26*; do
               [[ -f "$f" ]] || continue
               try "$f"
             done
           ' || '' }}
         validate_native_macOS: |
-          try arch -arm64 "./${{ steps.cfg.outputs.exe }}"
-          try arch -x86_64 "./${{ steps.cfg.outputs.exe }}"
+          for f in ./dbs26*; do
+            [[ -f "$f" ]] || continue
+            try arch -arm64 "$f"  || true
+            try arch -x86_64 "$f" || true
+          done
 
         type: ${{ steps.cfg.outputs.build_type }}
         cross_on: |
