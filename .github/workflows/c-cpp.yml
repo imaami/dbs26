@@ -235,7 +235,11 @@ jobs:
             cat "$BUILD_DIR/meson-logs/meson-log.txt"
             false
           }
-          strip --strip-all "$BUILD_DIR/${{ steps.cfg.outputs.exe }}"
+          local f
+          for f in "$BUILD_DIR/dbs26"*; do
+            [[ -f "$f" ]] || continue
+            strip --strip-all "$f"
+          done
         compile_native_macOS: |
           "${{ steps.cfg.outputs.cc }}" -arch arm64 $c_flags -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-arm64" ${{ steps.cfg.outputs.src }}
           "${{ steps.cfg.outputs.cc }}" -arch x86_64 $c_flags -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-x86_64" ${{ steps.cfg.outputs.src }}
