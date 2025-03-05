@@ -154,10 +154,10 @@ jobs:
           python -m pip install ninja meson
 
         post_depends_on_macOS: |
-          brew install --quiet coreutils gnu-sed meson
+          brew install --quiet coreutils gnu-sed llvm lld meson
           echo "$(brew --prefix)/opt/coreutils/libexec/gnubin:$(brew --prefix)/opt/gnu-sed/libexec/gnubin" >> "$GITHUB_PATH"
         post_depends_cross_Windows_on_macOS: |
-          brew install --quiet llvm lld binutils
+          brew install --quiet binutils
           echo "$(brew --prefix)/opt/llvm/bin:$(brew --prefix)/opt/binutils/bin" >> "$GITHUB_PATH"
 
         pre_introspect_cross_Windows: |
@@ -255,7 +255,7 @@ jobs:
             strip --strip-all "$f"
           done
         compile_native_macOS: |
-          CC="$chosen_clang" CC_LD=ld64.lld meson setup "$BUILD_DIR" "$GITHUB_WORKSPACE" -Dstupid=true || {
+          CC="$chosen_clang" CC_LD=lld meson setup "$BUILD_DIR" "$GITHUB_WORKSPACE" -Dstupid=true || {
             cat "$BUILD_DIR/meson-logs/meson-log.txt"
             false
           }
