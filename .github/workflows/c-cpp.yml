@@ -155,10 +155,10 @@ jobs:
 
         post_depends_on_macOS: |
           brew install --quiet coreutils gnu-sed llvm lld meson
-          echo "$(brew --prefix)/opt/coreutils/libexec/gnubin:$(brew --prefix)/opt/gnu-sed/libexec/gnubin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix)/opt/llvm/bin:$(brew --prefix)/opt/coreutils/libexec/gnubin:$(brew --prefix)/opt/gnu-sed/libexec/gnubin" >> "$GITHUB_PATH"
         post_depends_cross_Windows_on_macOS: |
           brew install --quiet binutils
-          echo "$(brew --prefix)/opt/llvm/bin:$(brew --prefix)/opt/binutils/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix)/opt/binutils/bin" >> "$GITHUB_PATH"
 
         pre_introspect_cross_Windows: |
           local msvc_version=$(dos2unix < "$MSVC_SDK/VC/Auxiliary/Build/Microsoft.VCToolsVersion.default.txt")
