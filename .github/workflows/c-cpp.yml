@@ -228,7 +228,14 @@ jobs:
           winecfg -v win11 || true
           wineserver -p || true
         compile_native_Linux: |
-          "${{ steps.cfg.outputs.cc }}" $c_flags -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
+          CC=clang-21 C_LD=lld meson setup "$BUILD_DIR" "$GITHUB_WORKSPACE" -Dstupid=true || {
+            cat "$BUILD_DIR/meson-logs/meson-log.txt"
+            false
+          }
+          meson compile -C "$BUILD_DIR" || {
+            cat "$BUILD_DIR/meson-logs/meson-log.txt"
+            false
+          }
           strip --strip-all "$BUILD_DIR/${{ steps.cfg.outputs.exe }}"
         compile_native_macOS: |
           "${{ steps.cfg.outputs.cc }}" -arch arm64 $c_flags -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-arm64" ${{ steps.cfg.outputs.src }}
