@@ -262,18 +262,17 @@ jobs:
             "$@" -o -     | sha1sum       ; rm -f "$out"
             "$@" -o "$out"; sha1sum "$out"; rm -f "$out"
           }
-          local f
-          for f in ./dbs26*; do
-            [[ -f "$f" ]] || continue
-        validate_cross: |
-            try "$f"
-        validate_native_Linux: |
-            try "$f"
+        validate: |
+          ${{ ! steps.id.outputs.native_macOS && '
+            local f
+            for f in ./dbs26*; do
+              [[ -f "$f" ]] || continue
+              try "$f"
+            done
+          ' || '' }}
         validate_native_macOS: |
-            try arch -arm64 "$f"
-            try arch -x86_64 "$f"
-        post_validate: |
-          done
+          try arch -arm64 "$f"
+          try arch -x86_64 "$f"
 
         type: ${{ steps.cfg.outputs.build_type }}
         cross_on: |
