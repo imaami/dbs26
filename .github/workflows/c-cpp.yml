@@ -255,7 +255,7 @@ jobs:
             strip --strip-all "$f"
           done
         compile_native_macOS: |
-          CC="$chosen_clang" CC_LD=lld meson setup "$BUILD_DIR" "$GITHUB_WORKSPACE" -Dstupid=true || {
+          CC="$chosen_clang" CC_LD=ld64.lld meson setup "$BUILD_DIR" "$GITHUB_WORKSPACE" -Dstupid=true || {
             cat "$BUILD_DIR/meson-logs/meson-log.txt"
             false
           }
