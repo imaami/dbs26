@@ -271,8 +271,8 @@ jobs:
             done
           ' || '' }}
         validate_native_macOS: |
-          try arch -arm64 "${{ steps.cfg.outputs.exe }}"
-          try arch -x86_64 "${{ steps.cfg.outputs.exe }}"
+          try arch -arm64 "./${{ steps.cfg.outputs.exe }}"
+          try arch -x86_64 "./${{ steps.cfg.outputs.exe }}"
 
         type: ${{ steps.cfg.outputs.build_type }}
         cross_on: |
