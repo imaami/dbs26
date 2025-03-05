@@ -213,16 +213,19 @@ jobs:
             cc_x["$_cc"]="$x"
             cc_v["$_cc"]="$v"
           done
-          ((n = 3 + $(printf '%s\n' "${cc_clang[@]}" "${cc_gcc[@]}" | wc -L)))
-          for _cc in "${cc_clang[@]}"; do
-            printf "%s\t\033[1;34m%-${n}s  \033[36m%s\033[m\n" "${cc_x[$_cc]}" \
-                   "$_cc"$'\033[m' "${cc_v[$_cc]}"
-          done | sort -V -r | cut -f2-
-          for _cc in "${cc_gcc[@]}"; do
-            printf "%s\t\033[1;32m%-${n}s  \033[33m%s\033[m\n" "${cc_x[$_cc]}" \
-                   "$_cc"$'\033[m' "${cc_v[$_cc]}"
-          done | sort -V -r | cut -f2-
+          n=$(printf '%s\n' "${cc_clang[@]}" "${cc_gcc[@]}" | wc -L)
 
+          x="$(for _cc in "${cc_clang[@]}"; do
+            printf "%s\t%-${n}s  %s\n" "${cc_x[$_cc]}" "$_cc" "${cc_v[$_cc]}"
+          done | sort -V -r | cut -f2-)"
+          echo "chosen_clang=${x%% *}" >> "$GITHUB_OUTPUT"
+          sed -E 's,^([^ ]+)( +)([^ ].*)$,'$'\033[1;34m\\1\033[m\\2\033[36m\\3\033[m,' <<< "$x"
+
+          x="$(for _cc in "${cc_gcc[@]}"; do
+            printf "%s\t%-${n}s  %s\n" "${cc_x[$_cc]}" "$_cc" "${cc_v[$_cc]}"
+          done | sort -V -r | cut -f2-)"
+          echo "chosen_gcc=${x%% *}" >> "$GITHUB_OUTPUT"
+          sed -E 's,^([^ ]+)( +)([^ ].*)$,'$'\033[1;32m\\1\033[m\\2\033[33m\\3\033[m,' <<< "$x"
 
         pre_compile: |
           mkdir -p "$BUILD_DIR"
@@ -237,8 +240,8 @@ jobs:
           winecfg -v win11 || true
           wineserver -p || true
         compile_Linux: |
-          CC=clang-21 CC_LD=lld-21 meson setup "$BUILD_DIR" "$GITHUB_WORKSPACE" \
-                                         -Dm_arch=x86-64-v3 -Dm_tune=znver3 -Dstupid=true || {
+          CC="$chosen_clang" CC_LD=lld meson setup "$BUILD_DIR" "$GITHUB_WORKSPACE" \
+                                       -Dm_arch=x86-64-v3 -Dm_tune=znver3 -Dstupid=true || {
             cat "$BUILD_DIR/meson-logs/meson-log.txt"
             false
           }
@@ -252,8 +255,8 @@ jobs:
             strip --strip-all "$f"
           done
         compile_native_macOS: |
-          "${{ steps.cfg.outputs.cc }}" -arch arm64 $c_flags -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-arm64" ${{ steps.cfg.outputs.src }}
-          "${{ steps.cfg.outputs.cc }}" -arch x86_64 $c_flags -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-x86_64" ${{ steps.cfg.outputs.src }}
+          "$chosen_clang" -arch arm64 $c_flags -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-arm64" ${{ steps.cfg.outputs.src }}
+          "$chosen_clang" -arch x86_64 $c_flags -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-x86_64" ${{ steps.cfg.outputs.src }}
           lipo -create -output "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-arm64" "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-x86_64"
         compile_cross_Windows: |
           printf 'ci.ini:\n%s\nINCLUDE=%s\nLIB=%s\nWINEPATH=%s\n' \
@@ -274,7 +277,7 @@ jobs:
 
           BIN="$MSVC_BIN" . "$MSVC_GIT/msvcenv-native.sh"
           export PATH="$MSVC_BIN:$PATH"
-          "${{ steps.cfg.outputs.cc }}" --target=$TARGET_TRIPLE $c_flags -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
+          "$chosen_clang" --target=$TARGET_TRIPLE $c_flags -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
         post_compile_cross_Windows_on_Linux: |
           "${{ steps.cfg.outputs.ccl }}" -nologo /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "$BUILD_DIR/${{ steps.cfg.outputs.exe_ccl }}" -fuse-ld=lld ${{ steps.cfg.outputs.src }}
 
@@ -410,6 +413,7 @@ jobs:
       working-directory: ${{ github.workspace }}/src
       env:
         BUILD_DIR: ${{ steps.cfg.outputs.build_dir }}
+        chosen_clang: ${{ steps.introspect.outputs.chosen_clang }}
         c_flags: ${{ steps.cfg.outputs.cflags }}
         MSVC_BIN: ${{ steps.cfg.outputs.msvc_bin }}
         MSVC_GIT: ${{ steps.cfg.outputs.msvc_git }}
