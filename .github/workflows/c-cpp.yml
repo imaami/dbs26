@@ -154,9 +154,8 @@ jobs:
           "$MSVC_GIT/install.sh" "$MSVC_SDK"
 
         post_depends_on_Linux: |
-          sudo apt-get install -y clang clang-21 lld lld-21 llvm-21-linker-tools
-        post_depends_cross_Windows_on_Linux: |
-          sudo apt-get install -y meson-1.5
+          sudo apt-get install -y clang clang-21 lld lld-21 llvm-21-linker-tools python3-pip
+          python -m pip install ninja meson
 
         post_depends_on_macOS: |
           brew install --quiet coreutils gnu-sed
