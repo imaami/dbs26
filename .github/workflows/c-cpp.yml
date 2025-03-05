@@ -154,10 +154,10 @@ jobs:
           python -m pip install ninja meson
 
         post_depends_on_macOS: |
-          brew install --quiet coreutils gnu-sed
+          brew install --quiet coreutils gnu-sed meson
           echo "$(brew --prefix)/opt/coreutils/libexec/gnubin:$(brew --prefix)/opt/gnu-sed/libexec/gnubin" >> "$GITHUB_PATH"
         post_depends_cross_Windows_on_macOS: |
-          brew install --quiet llvm lld binutils meson
+          brew install --quiet llvm lld binutils
           echo "$(brew --prefix)/opt/llvm/bin:$(brew --prefix)/opt/binutils/bin" >> "$GITHUB_PATH"
 
         pre_introspect_cross_Windows: |
@@ -255,21 +255,24 @@ jobs:
             strip --strip-all "$f"
           done
         compile_native_macOS: |
-          "$chosen_clang" -arch arm64 $c_flags -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-arm64" ${{ steps.cfg.outputs.src }}
-          "$chosen_clang" -arch x86_64 $c_flags -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-x86_64" ${{ steps.cfg.outputs.src }}
-          lipo -create -output "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-arm64" "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-x86_64"
+          CC="$chosen_clang" CC_LD=lld meson setup "$BUILD_DIR" "$GITHUB_WORKSPACE" -Dstupid=true || {
+            cat "$BUILD_DIR/meson-logs/meson-log.txt"
+            false
+          }
+          meson compile -C "$BUILD_DIR" || {
+            cat "$BUILD_DIR/meson-logs/meson-log.txt"
+            false
+          }
         compile_cross_Windows: |
           printf 'ci.ini:\n%s\nINCLUDE=%s\nLIB=%s\nWINEPATH=%s\n' \
                  "$(sed 's,^,  ,' "$GITHUB_WORKSPACE/ci.ini")"    \
                  "$INCLUDE" "$LIB" "$WINEPATH"
 
-          INCLUDE="$INCLUDE" LIB="$LIB" LIBPATH="$LIB" WINEPATH="$WINEPATH" \
           meson setup "$BUILD_DIR" "$GITHUB_WORKSPACE" -Dstupid=true        \
                 --cross-file="$GITHUB_WORKSPACE"/{ci,msvc,x86_64,wine}.ini || {
             cat "$BUILD_DIR/meson-logs/meson-log.txt"
             false
           }
-          INCLUDE="$INCLUDE" LIB="$LIB" LIBPATH="$LIB" WINEPATH="$WINEPATH" \
           meson compile -C "$BUILD_DIR" || {
             cat "$BUILD_DIR/meson-logs/meson-log.txt"
             false
@@ -420,6 +423,7 @@ jobs:
         MSVC_SDK: ${{ steps.cfg.outputs.msvc_sdk }}
         INCLUDE: ${{ steps.introspect.outputs.include }}
         LIB: ${{ steps.introspect.outputs.lib }}
+        LIBPATH: ${{ steps.introspect.outputs.lib }}
         WINEPATH: ${{ steps.introspect.outputs.winepath }}
         host_wine: ${{ steps.introspect.outputs.host_wine }}
         msvc_version: ${{ steps.introspect.outputs.msvc_version }}
