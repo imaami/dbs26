@@ -91,12 +91,8 @@ jobs:
                msvc_sdk="$msvc_sdk" >> "$GITHUB_OUTPUT"
         ' || '' }}
 
-        build_dir="$GITHUB_WORKSPACE/build"
         printf "%s\n" \
-               abs_exe="$build_dir/$exe" \
-               ${{ env.cl && 'abs_exe_cl="$build_dir/$exe_cl"' || ''}} \
-               ${{ env.ccl && 'abs_exe_ccl="$build_dir/$exe_ccl"' || ''}} \
-               build_dir="$build_dir" \
+               build_dir="$GITHUB_WORKSPACE/build" \
                build_type="${{ env.build_type }}" >> "$GITHUB_OUTPUT"
 
     - name: Generate build
@@ -266,16 +262,18 @@ jobs:
             "$@" -o -     | sha1sum       ; rm -f "$out"
             "$@" -o "$out"; sha1sum "$out"; rm -f "$out"
           }
+          local f
+          for f in ./dbs26*; do
+            [[ -f "$f" ]] || continue
+        validate_cross: |
+            try "$f"
         validate_native_Linux: |
-          try ./${{ steps.cfg.outputs.exe }}
+            try "$f"
         validate_native_macOS: |
-          try arch -arm64 ./${{ steps.cfg.outputs.exe }}
-          try arch -x86_64 ./${{ steps.cfg.outputs.exe }}
-        validate_cross_Windows: |
-          try ./${{ steps.cfg.outputs.exe }}
-          try ./${{ steps.cfg.outputs.exe_cl }}
-        post_validate_cross_Windows_on_Linux: |
-          try ./${{ steps.cfg.outputs.exe_ccl }}
+            try arch -arm64 "$f"
+            try arch -x86_64 "$f"
+        post_validate: |
+          done
 
         type: ${{ steps.cfg.outputs.build_type }}
         cross_on: |
@@ -407,9 +405,8 @@ jobs:
       with:
         name: ${{ steps.cfg.outputs.pkg }}
         path: |
-          ${{ steps.cfg.outputs.abs_exe }}
-          ${{ steps.cfg.outputs.abs_exe_cl }}
-          ${{ steps.cfg.outputs.abs_exe_ccl }}
+          ${{ steps.cfg.outputs.build_dir }}/dbs26*
+          !${{ steps.cfg.outputs.build_dir }}/*.p
 
     - name: Validate
       working-directory: ${{ steps.cfg.outputs.build_dir }}
