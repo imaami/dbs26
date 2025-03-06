@@ -92,22 +92,27 @@ if meson.is_cross_build() and build_sys == 'darwin' and host_sys == 'darwin'
 		install : false,
 		native : true)
 
-	exe = custom_target(
+	universal_exe = exe_name + '-universal'
+	custom_target(
+		universal_exe,
+		output : universal_exe,
+		input : [ host_exe, build_exe ],
+		command : [
+			'lipo', '-create', '-output', '@OUTPUT@', '@INPUT0@', '@INPUT1@'
+		],
+		install : false)
+
+	custom_target(
 		exe_name,
 		output : exe_name,
-		build_by_default : true,
+		input : [ universal_exe, host_exe, build_exe ],
 		command : [
-			'lipo', '-create', '-output',
-			exe_name, host_exe, build_exe
-		])
-
-	finalize = run_target(
-		'finalize',
-		depends: [ exe ],
-		command : [
-			'rm', '-f', host_exe, build_exe
-		])
-	alias_target('universal', finalize)
+			'bash', '-c', 'install -sT "$2" "$1"; rm -f "$2" "$3" "$4"',
+			'--', '@OUTPUT@', '@INPUT0@', '@INPUT1@', '@INPUT2@'
+		],
+		install : true,
+		install_dir : get_option('bindir'),
+		build_by_default : true)
 else
 	executable(
 		exe_name,

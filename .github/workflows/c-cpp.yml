@@ -41,7 +41,6 @@ jobs:
                "${{ matrix.os }}=${{ matrix.os }}" \
                ${{ env.cross_ }}${{ env._on_ }}${{ env._cross_ }}${{ env._on_ }} \
                "build=${{ matrix.os != runner.os && env.os_ || '' }}${{ matrix.on }}" \
-               "${{ matrix.os }}_${{ runner.os }}=${{ env.type }}_${{ matrix.os }}" \
                "${{ env.type }}_${{ matrix.os }}=${{ env.type }}_${{ matrix.os }}" \
                "${{ env.type }}=${{ env.type }}" >> "$GITHUB_OUTPUT"
 
