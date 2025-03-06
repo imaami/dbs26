@@ -176,7 +176,7 @@ jobs:
           WINEPATH+=";$sdk\\bin\\$winsdk_version\\$arch"
           set -- $(command -v wine64 wine-stable wine 2>/dev/null || true)
           printf '%s\n'                       \
-                 host_wine="${1##*/}"         \
+                 wine_exe="${1##*/}"          \
                  include="$INCLUDE"           \
                  lib="$LIB"                   \
                  msvc_version="$msvc_version" \
@@ -229,12 +229,18 @@ jobs:
 
         pre_compile: |
           mkdir -p "$BUILD_DIR"
+        pre_compile_native_macOS: |
+          local crossfile
+          printf -v crossfile -- '%s = %s\n'             \
+                 llvm_suffix "'${chosen_clang##*clang}'"
+          printf '[constants]\n%s' "$crossfile" > "$GITHUB_WORKSPACE/ci.ini"
         pre_compile_cross_Windows: |
           local crossfile
-          printf -v crossfile -- '%s = %s\n' \
-                 host_wine "[ '$host_wine' ]" \
-                 msvc_sdk "'$MSVC_SDK'" \
-                 msvc_version "'$msvc_version'"
+          printf -v crossfile -- '%s = %s\n'             \
+                 llvm_suffix "'${chosen_clang##*clang}'" \
+                 msvc_sdk "'$MSVC_SDK'"                  \
+                 msvc_version "'$msvc_version'"          \
+                 wine_exe "[ '$wine_exe' ]"
           printf '[constants]\n%s' "$crossfile" > "$GITHUB_WORKSPACE/ci.ini"
           wineboot || true
           winecfg -v win11 || true
@@ -255,7 +261,9 @@ jobs:
             strip --strip-all "$f"
           done
         compile_native_macOS: |
-          CC="$chosen_clang" CC_LD=lld meson setup "$BUILD_DIR" "$GITHUB_WORKSPACE" -Dstupid=true || {
+          CC_FOR_BUILD="$chosen_clang" CC_LD_FOR_BUILD=lld           \
+          meson setup "$BUILD_DIR" "$GITHUB_WORKSPACE" -Dstupid=true \
+                --cross-file="$GITHUB_WORKSPACE"/{ci,macos,x86_64}.ini || {
             cat "$BUILD_DIR/meson-logs/meson-log.txt"
             false
           }
@@ -430,7 +438,7 @@ jobs:
         LIB: ${{ steps.introspect.outputs.lib }}
         LIBPATH: ${{ steps.introspect.outputs.lib }}
         WINEPATH: ${{ steps.introspect.outputs.winepath }}
-        host_wine: ${{ steps.introspect.outputs.host_wine }}
+        wine_exe: ${{ steps.introspect.outputs.wine_exe }}
         msvc_version: ${{ steps.introspect.outputs.msvc_version }}
         winsdk_version: ${{ steps.introspect.outputs.winsdk_version }}
       run: |
