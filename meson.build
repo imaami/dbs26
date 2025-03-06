@@ -98,13 +98,11 @@ if meson.is_cross_build() and build_sys == 'darwin' and host_sys == 'darwin'
 		depends: [ host_exe, build_exe ],
 		output : universal_exe_name,
 		input : [
-			host_exe_name,
-			build_exe_name
+			host_exe,
+			build_exe
 		],
 		command : [
-			'llvm-lipo', '-create',
-			'-output', universal_exe_name,
-			host_exe_name, build_exe_name
+			'llvm-lipo', '-create', '-output', '@OUTPUT@', '@INPUT@'
 		],
 		install : false)
 
@@ -113,17 +111,13 @@ if meson.is_cross_build() and build_sys == 'darwin' and host_sys == 'darwin'
 		depends: [ universal_exe ],
 		output : exe_name,
 		input : [
-			universal_exe_name,
-			host_exe_name,
-			build_exe_name
+			universal_exe,
+			host_exe,
+			build_exe
 		],
 		command : [
 			'bash', '-c', 'install -sT "$2" "$1"; rm -f "$2" "$3" "$4"',
-			'--',
-			exe_name,
-			universal_exe_name,
-			host_exe_name,
-			build_exe_name
+			'--', '@OUTPUT@', '@INPUT@'
 		],
 		install : true,
 		install_dir : get_option('bindir'),
