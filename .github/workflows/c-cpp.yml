@@ -263,7 +263,7 @@ jobs:
         compile_native_macOS: |
           CC_FOR_BUILD="$chosen_clang" CC_LD_FOR_BUILD=lld           \
           meson setup "$BUILD_DIR" "$GITHUB_WORKSPACE" -Dstupid=true \
-                --cross-file="$GITHUB_WORKSPACE"/{ci,macos,x86_64}.ini || {
+                --cross-file="$GITHUB_WORKSPACE"/{ci,llvm,macos,x86_64}.ini || {
             cat "$BUILD_DIR/meson-logs/meson-log.txt"
             false
           }
