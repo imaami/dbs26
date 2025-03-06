@@ -75,11 +75,26 @@ else
 	exe_name = 'dbs26'
 endif
 
-executable(
-	exe_name,
-	'src/args.c',
-	'src/dbs26.c',
-	install : true)
+if meson.is_cross_build() and build_sys == 'darwin' and host_sys == 'darwin'
+	executable(
+		exe_name + '-' + host_cpu,
+		'src/args.c',
+		'src/dbs26.c',
+		install : true,
+		native : false)
+	executable(
+		exe_name + '-' + build_cpu,
+		'src/args.c',
+		'src/dbs26.c',
+		install : true,
+		native : true)
+else
+	executable(
+		exe_name,
+		'src/args.c',
+		'src/dbs26.c',
+		install : true)
+endif
 
 summary({
 	'executable': exe_name,
