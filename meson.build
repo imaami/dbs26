@@ -85,7 +85,7 @@ if meson.is_cross_build() and build_sys == 'darwin' and host_sys == 'darwin'
 		native : false)
 
 	build_exe_name = exe_name + '-' + build_cpu
-	executable(
+	build_exe = executable(
 		build_exe_name,
 		'src/args.c',
 		'src/dbs26.c',
