@@ -76,48 +76,36 @@ else
 endif
 
 if meson.is_cross_build() and build_sys == 'darwin' and host_sys == 'darwin'
-	host_exe_name = exe_name + '-' + host_cpu
 	host_exe = executable(
-		host_exe_name,
+		exe_name + '-' + host_cpu,
 		'src/args.c',
 		'src/dbs26.c',
 		install : false,
 		native : false)
 
-	build_exe_name = exe_name + '-' + build_cpu
 	build_exe = executable(
-		build_exe_name,
+		exe_name + '-' + build_cpu,
 		'src/args.c',
 		'src/dbs26.c',
 		install : false,
 		native : true)
 
-	universal_exe_name = exe_name + '-universal'
 	universal_exe = custom_target(
-		universal_exe_name,
-		depends: [ host_exe, build_exe ],
-		output : universal_exe_name,
-		input : [
-			host_exe,
-			build_exe
-		],
+		exe_name + '-universal',
+		output : exe_name + '-universal',
+		input : [ host_exe, build_exe ],
 		command : [
-			'llvm-lipo', '-create', '-output', '@OUTPUT@', '@INPUT@'
+			meson.get_external_property('lipo'), '-create', '-output', '@OUTPUT@', '@INPUT@'
 		],
 		install : false)
 
 	custom_target(
 		exe_name,
-		depends: [ universal_exe ],
 		output : exe_name,
-		input : [
-			universal_exe,
-			host_exe,
-			build_exe
-		],
+		input : [ universal_exe, host_exe, build_exe ],
 		command : [
-			'bash', '-c', 'install -sT "$2" "$1"; rm -f "$2" "$3" "$4"',
-			'--', '@OUTPUT@', '@INPUT@'
+			'bash', '-c', 'install --strip-program="$1" -sT "$3" "$2"; rm -f "$3" "$4" "$5"',
+			'--', meson.get_external_property('strip'), '@OUTPUT@', '@INPUT@'
 		],
 		install : true,
 		install_dir : get_option('bindir'),
