@@ -52,6 +52,9 @@ elif host_sys != 'darwin'
 			'-mtune=' + m_tune,
 			language: 'c')
 	endif
+else
+	m_arch = ''
+	m_tune = ''
 endif
 
 if host_cc.get_id() == 'gcc'
