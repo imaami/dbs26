@@ -95,7 +95,8 @@ if meson.is_cross_build() and build_sys == 'darwin' and host_sys == 'darwin'
 		output : exe_name + '-universal',
 		input : [ host_exe, build_exe ],
 		command : [
-			meson.get_external_property('lipo'), '-create', '-output', '@OUTPUT@', '@INPUT@'
+			meson.get_external_property('lipo', 'llvm-lipo'),
+			'-create', '-output', '@OUTPUT@', '@INPUT@'
 		],
 		install : false)
 
@@ -105,7 +106,7 @@ if meson.is_cross_build() and build_sys == 'darwin' and host_sys == 'darwin'
 		input : [ universal_exe, host_exe, build_exe ],
 		command : [
 			'bash', '-c', 'install --strip-program="$1" -sT "$3" "$2"; rm -f "$3" "$4" "$5"',
-			'--', meson.get_external_property('strip'), '@OUTPUT@', '@INPUT@'
+			'--', meson.get_external_property('strip', 'llvm-strip'), '@OUTPUT@', '@INPUT@'
 		],
 		install : true,
 		install_dir : get_option('bindir'),
