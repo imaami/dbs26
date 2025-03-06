@@ -101,13 +101,13 @@ if meson.is_cross_build() and build_sys == 'darwin' and host_sys == 'darwin'
 			exe_name, host_exe, build_exe
 		])
 
-	cleanup = run_target(
-		'cleanup',
+	finalize = run_target(
+		'finalize',
 		depends: [ exe ],
 		command : [
 			'rm', '-f', host_exe, build_exe
 		])
-	alias_target('all', cleanup)
+	alias_target('universal', finalize)
 else
 	executable(
 		exe_name,
