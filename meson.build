@@ -76,18 +76,38 @@ else
 endif
 
 if meson.is_cross_build() and build_sys == 'darwin' and host_sys == 'darwin'
+	host_exe = exe_name + '-' + host_cpu
 	executable(
-		exe_name + '-' + host_cpu,
+		host_exe,
 		'src/args.c',
 		'src/dbs26.c',
 		install : false,
 		native : false)
+
+	build_exe = exe_name + '-' + build_cpu
 	executable(
-		exe_name + '-' + build_cpu,
+		build_exe,
 		'src/args.c',
 		'src/dbs26.c',
 		install : false,
 		native : true)
+
+	exe = custom_target(
+		exe_name,
+		output : exe_name,
+		build_by_default : true,
+		command : [
+			'lipo', '-create', '-output',
+			exe_name, host_exe, build_exe
+		])
+
+	cleanup = run_target(
+		'cleanup',
+		depends: [ exe ],
+		command : [
+			'rm', '-f', host_exe, build_exe
+		])
+	alias_target('all', cleanup)
 else
 	executable(
 		exe_name,
