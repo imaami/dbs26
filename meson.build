@@ -80,13 +80,13 @@ if meson.is_cross_build() and build_sys == 'darwin' and host_sys == 'darwin'
 		exe_name + '-' + host_cpu,
 		'src/args.c',
 		'src/dbs26.c',
-		install : true,
+		install : false,
 		native : false)
 	executable(
 		exe_name + '-' + build_cpu,
 		'src/args.c',
 		'src/dbs26.c',
-		install : true,
+		install : false,
 		native : true)
 else
 	executable(
