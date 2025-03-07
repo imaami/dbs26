@@ -1,0 +1,4 @@
+option('m_arch', type: 'string', value: 'native', description: '-march=...')
+option('m_tune', type: 'string', value: 'native', description: '-mtune=...')
+option('suffix', type: 'boolean', value: false, description: 'Append the compiler and version as a suffix to the output executable name.')
+option('stupid', type: 'boolean', value: false, description: 'Append a stupid amount of build config info to the output executable name.')

@@ -41,7 +41,6 @@ jobs:
                "${{ matrix.os }}=${{ matrix.os }}" \
                ${{ env.cross_ }}${{ env._on_ }}${{ env._cross_ }}${{ env._on_ }} \
                "build=${{ matrix.os != runner.os && env.os_ || '' }}${{ matrix.on }}" \
-               "${{ matrix.os }}_${{ runner.os }}=${{ env.type }}_${{ matrix.os }}" \
                "${{ env.type }}_${{ matrix.os }}=${{ env.type }}_${{ matrix.os }}" \
                "${{ env.type }}=${{ env.type }}" >> "$GITHUB_OUTPUT"
 
@@ -60,23 +59,19 @@ jobs:
       env:
         build_type: ${{ steps.id.outputs.cross }}${{ steps.id.outputs.native }}
         cc: ${{ steps.id.outputs.on_macOS && 'clang' || 'clang-21' }}
-        cl: ${{ steps.id.outputs.Windows && 'cl' || '' }}
         ccl: ${{ steps.id.outputs.cross_Windows_on_Linux && 'clang-cl-21' || '' }}
         baseflags: -std=gnu2${{ steps.id.outputs.on_macOS && 'x' || '3' }} -flto=full -O3 -Wall -Wextra -Wpedantic -Weverything -DNDEBUG=1
         archflags: ${{ ! steps.id.outputs.macOS && ' -fuse-ld=lld' || '' }}${{ steps.id.outputs.Linux && ' -march=x86-64-v3 -mtune=znver3' || '' }}
         ext: ${{ steps.id.outputs.Windows && '.exe' || '' }}
       run: |
         exe="dbs26-${{ env.cc }}${{ env.ext }}"
-        ${{ env.cl && 'exe_cl=dbs26-' || '' }}${{ env.cl }}${{ env.cl && env.ext || '' }}
         ${{ env.ccl && 'exe_ccl=dbs26-' || '' }}${{ env.ccl }}${{ env.ccl && env.ext || '' }}
         printf '%s\n' \
-               ${{ steps.id.outputs.cross_Windows && 'maybe_use_wine="set \$(command -v wine64 || command -v wine || command -v wine-stable || echo false) \"\$@\""' || '' }} \
+               ${{ steps.id.outputs.cross_Windows && 'maybe_use_wine="set \$(command -v wine64 || command -v wine-stable || command -v wine || echo false) \"\$@\""' || '' }} \
                cc=${{ env.cc }} \
-               ${{ env.cl && 'cl=' || '' }}${{ env.cl }} \
                ${{ env.ccl && 'ccl=' || '' }}${{ env.ccl }} \
                cflags="${{ env.baseflags }}${{ env.archflags }}" \
                exe="$exe" \
-               ${{ env.cl && 'exe_cl=$exe_cl' || '' }} \
                ${{ env.ccl && 'exe_ccl=$exe_ccl' || '' }} \
                pkg=dbs26-${{ steps.id.outputs.build }} \
                src="args.c dbs26.c" >> "$GITHUB_OUTPUT"
@@ -91,12 +86,8 @@ jobs:
                msvc_sdk="$msvc_sdk" >> "$GITHUB_OUTPUT"
         ' || '' }}
 
-        build_dir="$GITHUB_WORKSPACE/build"
         printf "%s\n" \
-               abs_exe="$build_dir/$exe" \
-               ${{ env.cl && 'abs_exe_cl="$build_dir/$exe_cl"' || ''}} \
-               ${{ env.ccl && 'abs_exe_ccl="$build_dir/$exe_ccl"' || ''}} \
-               build_dir="$build_dir" \
+               build_dir="$GITHUB_WORKSPACE/build" \
                build_type="${{ env.build_type }}" >> "$GITHUB_OUTPUT"
 
     - name: Generate build
@@ -134,9 +125,9 @@ jobs:
           echo "path=${MSVC_CACHE#$GITHUB_WORKSPACE/}" >> "$GITHUB_OUTPUT"
 
         pre_depends_cross_Windows_on_Linux: |
-          sudo apt-get install -y msitools winbind wine wine64
+          sudo apt-get install -y msitools winbind wine wine64 dos2unix
         pre_depends_cross_Windows_on_macOS: |
-          brew install --quiet msitools wine-stable
+          brew install --quiet msitools wine-stable dos2unix
 
         depends_cross_Windows: |
           local OLD_CACHE=''
@@ -146,8 +137,9 @@ jobs:
               OLD_CACHE="$MSVC_CACHE.old"
               mv "$MSVC_CACHE" "$OLD_CACHE"
             fi
+          else
+            printf '\033[1;32mInstalling MSVC SDK\033[m\n'
           fi
-          printf '\033[1;32mInstalling MSVC SDK\033[m\n'
           mkdir -p "$MSVC_CACHE" "$MSVC_SDK"
           "$MSVC_GIT/vsdownload.py" --accept-license --architecture=x64 --host-arch=x64 --only-host=yes --preview --manifest="$MANIFEST" --cache="$MSVC_CACHE"${OLD_CACHE:+ --migrate="$OLD_CACHE"} --dest="$MSVC_SDK"
           if [[ "$OLD_CACHE" && -d "$OLD_CACHE" ]]; then
@@ -157,14 +149,38 @@ jobs:
           "$MSVC_GIT/install.sh" "$MSVC_SDK"
 
         post_depends_on_Linux: |
-          sudo apt-get install -y clang clang-21 lld lld-21 llvm-21-linker-tools
+          sudo apt-get install -y clang clang-21 lld lld-21 llvm-21-linker-tools python3-pip
+          python -m pip install ninja meson
 
         post_depends_on_macOS: |
-          brew install --quiet coreutils gnu-sed
-          echo "$(brew --prefix)/opt/coreutils/libexec/gnubin:$(brew --prefix)/opt/gnu-sed/libexec/gnubin" >> "$GITHUB_PATH"
+          brew install --quiet coreutils gnu-sed llvm lld meson
+          echo "$(brew --prefix)/opt/llvm/bin:$(brew --prefix)/opt/coreutils/libexec/gnubin:$(brew --prefix)/opt/gnu-sed/libexec/gnubin" >> "$GITHUB_PATH"
         post_depends_cross_Windows_on_macOS: |
-          brew install --quiet llvm lld binutils
-          echo "$(brew --prefix)/opt/llvm/bin:$(brew --prefix)/opt/binutils/bin" >> "$GITHUB_PATH"
+          brew install --quiet binutils
+          echo "$(brew --prefix)/opt/binutils/bin" >> "$GITHUB_PATH"
+
+        pre_introspect_cross_Windows: |
+          local msvc_version=$(dos2unix < "$MSVC_SDK/VC/Auxiliary/Build/Microsoft.VCToolsVersion.default.txt")
+          local winsdk_version=$(dos2unix < "$MSVC_SDK/Windows Kits/10/SDKManifest.xml" \
+          | grep -Eo 'PlatformIdentity *= *"[^"]+"' | grep -Eo '[0-9]+(\.[0-9]+)+')
+          local arch=x64 base="Z:${MSVC_SDK//\//\\}"
+          local vc="$base\\VC\\Tools\\MSVC\\$msvc_version"
+          local sdk="$base\\Windows Kits\\10"
+          local inc="$sdk\\Include\\$winsdk_version"
+          local lib="$sdk\\Lib\\$winsdk_version"
+
+          local INCLUDE="$vc\\include;$inc\\ucrt;$inc\\um;$inc\\shared;$inc\\winrt"
+          local LIB="$vc\\lib\\$arch;$lib\\ucrt\\$arch;$lib\\um\\$arch"
+          local WINEPATH="$vc\\bin\\Host$arch\\$arch"
+          WINEPATH+=";$sdk\\bin\\$winsdk_version\\$arch"
+          set -- $(command -v wine64 wine-stable wine 2>/dev/null || true)
+          printf '%s\n'                       \
+                 wine_exe="${1##*/}"          \
+                 include="$INCLUDE"           \
+                 lib="$LIB"                   \
+                 msvc_version="$msvc_version" \
+                 winepath="$WINEPATH"         \
+                 winsdk_version="$winsdk_version" >> "$GITHUB_OUTPUT"
 
         introspect: |
           set +e
@@ -172,43 +188,110 @@ jobs:
           printf -- '\n+---------+\n|compilers|\n+---------+\n'
           . .github/workflows/functions.bash
           get_compilers
-          declare -a cc_clang cc_gcc
-          declare -A cc_v
+          local -a cc_clang cc_gcc y
+          local -A cc_v cc_x
+          local _cc v x n
           for _cc in "${compilers[@]}"; do
             v=$("$_cc" --version 2>&1 | head -1)
-            case "$_cc" in
-            clang*)
-              cc_clang+=("$_cc") ;;
-            gcc*)
-              [[ ! "$v" =~ clang ]] || continue
-              cc_gcc+=("$_cc") ;;
+            [[ "$v" ]] || continue
+            printf -vx -- '%s\n'                                               \
+              '#if defined __clang__'                                          \
+              'y=(clang __clang_major__ __clang_minor__ __clang_patchlevel__)' \
+              '#elif defined __GNUC__'                                         \
+              'y=(gcc __GNUC__ __GNUC_MINOR__ __GNUC_PATCHLEVEL__)'            \
+              '#else'                                                          \
+              'continue'                                                       \
+              '#endif'
+            eval $("$_cc" -xc -E -P - <<< "$x")
+            printf -vx -- '%d.%d.%d' ${y[*]:1:3}
+            case ${y[0]} in
+            clang) cc_clang+=("$_cc") ;;
+            gcc)   cc_gcc+=("$_cc")   ;;
+            *)     continue           ;;
             esac
+            cc_x["$_cc"]="$x"
             cc_v["$_cc"]="$v"
           done
-          n=$(printf '%s\n' "${cc_v[@]}" | wc -L)
-          for _cc in "${cc_clang[@]}"; do
-            printf "%-${n}s\t%s\n" "${cc_v[$_cc]}" "$_cc"
-          done | tee compilers_clang
-          for _cc in "${cc_gcc[@]}"; do
-            printf "%-${n}s\t%s\n" "${cc_v[$_cc]}" "$_cc"
-          done | tee compilers_gcc
+          n=$(printf '%s\n' "${cc_clang[@]}" "${cc_gcc[@]}" | wc -L)
+
+          x="$(for _cc in "${cc_clang[@]}"; do
+            printf "%s\t%-${n}s  %s\n" "${cc_x[$_cc]}" "$_cc" "${cc_v[$_cc]}"
+          done | sort -V -r | cut -f2-)"
+          echo "chosen_clang=${x%% *}" >> "$GITHUB_OUTPUT"
+          sed -E 's,^([^ ]+)( +)([^ ].*)$,'$'\033[1;34m\\1\033[m\\2\033[36m\\3\033[m,' <<< "$x"
+
+          x="$(for _cc in "${cc_gcc[@]}"; do
+            printf "%s\t%-${n}s  %s\n" "${cc_x[$_cc]}" "$_cc" "${cc_v[$_cc]}"
+          done | sort -V -r | cut -f2-)"
+          echo "chosen_gcc=${x%% *}" >> "$GITHUB_OUTPUT"
+          sed -E 's,^([^ ]+)( +)([^ ].*)$,'$'\033[1;32m\\1\033[m\\2\033[33m\\3\033[m,' <<< "$x"
 
         pre_compile: |
           mkdir -p "$BUILD_DIR"
-        compile_native_Linux: |
-          "${{ steps.cfg.outputs.cc }}" $CFLAGS -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
-          strip --strip-all "$BUILD_DIR/${{ steps.cfg.outputs.exe }}"
+        pre_compile_native_macOS: |
+          local crossfile
+          printf -v crossfile -- '%s = %s\n'             \
+                 llvm_suffix "'${chosen_clang##*clang}'"
+          printf '[constants]\n%s' "$crossfile" > "$GITHUB_WORKSPACE/ci.ini"
+        pre_compile_cross_Windows: |
+          local crossfile
+          printf -v crossfile -- '%s = %s\n'             \
+                 llvm_suffix "'${chosen_clang##*clang}'" \
+                 msvc_sdk "'$MSVC_SDK'"                  \
+                 msvc_version "'$msvc_version'"          \
+                 wine_exe "[ '$wine_exe' ]"
+          printf '[constants]\n%s' "$crossfile" > "$GITHUB_WORKSPACE/ci.ini"
+          wineboot || true
+          winecfg -v win11 || true
+          wineserver -p || true
+        compile_Linux: |
+          CC="$chosen_clang" CC_LD=lld meson setup "$BUILD_DIR" "$GITHUB_WORKSPACE" \
+                                       -Dm_arch=x86-64-v3 -Dm_tune=znver3 -Dstupid=true || {
+            cat "$BUILD_DIR/meson-logs/meson-log.txt"
+            false
+          }
+          meson compile -C "$BUILD_DIR" || {
+            cat "$BUILD_DIR/meson-logs/meson-log.txt"
+            false
+          }
+          local f
+          for f in "$BUILD_DIR/dbs26"*; do
+            [[ -f "$f" ]] || continue
+            strip --strip-all "$f"
+          done
         compile_native_macOS: |
-          "${{ steps.cfg.outputs.cc }}" -arch arm64 $CFLAGS -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-arm64" ${{ steps.cfg.outputs.src }}
-          "${{ steps.cfg.outputs.cc }}" -arch x86_64 $CFLAGS -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-x86_64" ${{ steps.cfg.outputs.src }}
-          lipo -create -output "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-arm64" "$BUILD_DIR/${{ steps.cfg.outputs.exe }}-x86_64"
+          meson setup "$BUILD_DIR" "$GITHUB_WORKSPACE" -Dstupid=true \
+                --native-file="$GITHUB_WORKSPACE"/{ci,llvm,native-{aarch64,macos}}.ini \
+                --cross-file="$GITHUB_WORKSPACE"/{ci,llvm,cross-{x86_64,macos}}.ini || {
+            cat "$BUILD_DIR/meson-logs/meson-log.txt"
+            false
+          }
+          meson compile -C "$BUILD_DIR" || {
+            cat "$BUILD_DIR/meson-logs/meson-log.txt"
+            false
+          }
         compile_cross_Windows: |
+          printf 'ci.ini:\n%s\nINCLUDE=%s\nLIB=%s\nWINEPATH=%s\n' \
+                 "$(sed 's,^,  ,' "$GITHUB_WORKSPACE/ci.ini")"    \
+                 "$INCLUDE" "$LIB" "$WINEPATH"
+
+          meson setup "$BUILD_DIR" "$GITHUB_WORKSPACE" -Dstupid=true        \
+                --cross-file="$GITHUB_WORKSPACE"/{ci,msvc,x86_64,wine}.ini || {
+            cat "$BUILD_DIR/meson-logs/meson-log.txt"
+            false
+          }
+          meson compile -C "$BUILD_DIR" || {
+            cat "$BUILD_DIR/meson-logs/meson-log.txt"
+            false
+          }
+
           BIN="$MSVC_BIN" . "$MSVC_GIT/msvcenv-native.sh"
           export PATH="$MSVC_BIN:$PATH"
-          "${{ steps.cfg.outputs.cc }}" --target=$TARGET_TRIPLE $CFLAGS -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
-          "${{ steps.cfg.outputs.cl }}" /nologo /TC /std:clatest /experimental:c11atomics /DNDEBUG=1 /Wall /O2 /Oi /GL /GF /Zo- /MT /Fe: "$BUILD_DIR/${{ steps.cfg.outputs.exe_cl }}" ${{ steps.cfg.outputs.src }}
+          "$chosen_clang" --target=$TARGET_TRIPLE $c_flags -o "$BUILD_DIR/${{ steps.cfg.outputs.exe }}" ${{ steps.cfg.outputs.src }}
         post_compile_cross_Windows_on_Linux: |
           "${{ steps.cfg.outputs.ccl }}" -nologo /TC /DNDEBUG=1 /Wall /O2 /Oi /GF /Zo- /MT /Fe: "$BUILD_DIR/${{ steps.cfg.outputs.exe_ccl }}" -fuse-ld=lld ${{ steps.cfg.outputs.src }}
+        post_compile: |
+          cat "$BUILD_DIR/compile_commands.json" | jq -C
 
         pre_validate: |
           try() {
@@ -216,16 +299,20 @@ jobs:
             "$@" -o -     | sha1sum       ; rm -f "$out"
             "$@" -o "$out"; sha1sum "$out"; rm -f "$out"
           }
-        validate_native_Linux: |
-          try ./${{ steps.cfg.outputs.exe }}
+          local f
+        validate: |
+          ${{ ! steps.id.outputs.native_macOS && '
+            for f in ./dbs26*; do
+              [[ -f "$f" ]] || continue
+              try "$f"
+            done
+          ' || '' }}
         validate_native_macOS: |
-          try arch -arm64 ./${{ steps.cfg.outputs.exe }}
-          try arch -x86_64 ./${{ steps.cfg.outputs.exe }}
-        validate_cross_Windows: |
-          try ./${{ steps.cfg.outputs.exe }}
-          try ./${{ steps.cfg.outputs.exe_cl }}
-        post_validate_cross_Windows_on_Linux: |
-          try ./${{ steps.cfg.outputs.exe_ccl }}
+          for f in ./dbs26*; do
+            [[ -f "$f" ]] || continue
+            try arch -arm64 "$f"  || true
+            try arch -x86_64 "$f" || true
+          done
 
         type: ${{ steps.cfg.outputs.build_type }}
         cross_on: |
@@ -331,6 +418,9 @@ jobs:
         ${{ steps.f.outputs.depends }}
 
     - name: Introspect
+      id: introspect
+      env:
+        MSVC_SDK: ${{ steps.cfg.outputs.msvc_sdk }}
       run: |
         ${{ steps.f.outputs.introspect }}
 
@@ -338,9 +428,18 @@ jobs:
       working-directory: ${{ github.workspace }}/src
       env:
         BUILD_DIR: ${{ steps.cfg.outputs.build_dir }}
-        CFLAGS: ${{ steps.cfg.outputs.cflags }}
+        chosen_clang: ${{ steps.introspect.outputs.chosen_clang }}
+        c_flags: ${{ steps.cfg.outputs.cflags }}
         MSVC_BIN: ${{ steps.cfg.outputs.msvc_bin }}
         MSVC_GIT: ${{ steps.cfg.outputs.msvc_git }}
+        MSVC_SDK: ${{ steps.cfg.outputs.msvc_sdk }}
+        INCLUDE: ${{ steps.introspect.outputs.include }}
+        LIB: ${{ steps.introspect.outputs.lib }}
+        LIBPATH: ${{ steps.introspect.outputs.lib }}
+        WINEPATH: ${{ steps.introspect.outputs.winepath }}
+        wine_exe: ${{ steps.introspect.outputs.wine_exe }}
+        msvc_version: ${{ steps.introspect.outputs.msvc_version }}
+        winsdk_version: ${{ steps.introspect.outputs.winsdk_version }}
       run: |
         ${{ steps.f.outputs.compile }}
 
@@ -349,9 +448,8 @@ jobs:
       with:
         name: ${{ steps.cfg.outputs.pkg }}
         path: |
-          ${{ steps.cfg.outputs.abs_exe }}
-          ${{ steps.cfg.outputs.abs_exe_cl }}
-          ${{ steps.cfg.outputs.abs_exe_ccl }}
+          ${{ steps.cfg.outputs.build_dir }}/dbs26*
+          !${{ steps.cfg.outputs.build_dir }}/*.p
 
     - name: Validate
       working-directory: ${{ steps.cfg.outputs.build_dir }}
