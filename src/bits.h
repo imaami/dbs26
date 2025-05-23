@@ -18,6 +18,10 @@
   unsigned long pos = 0;        \
   return run1_##s(&pos,x)
 
+# define return_run0(s,x)       \
+  unsigned long pos = 0;        \
+  return run0_##s(&pos,x)
+
 # define run1_msb(p,x) (\
   bs_(Reverse,x)        \
      (p,cmpl(x))        \
@@ -27,9 +31,23 @@
   : (unsigned)CHAR_BIT *\
     (unsigned)sizeof (x))
 
+# define run0_msb(p,x) (\
+  bs_(Reverse,x)(p,x)   \
+  ? (unsigned)CHAR_BIT *\
+    (unsigned)sizeof (x)\
+    - 1U -(unsigned)*(p)\
+  : (unsigned)CHAR_BIT *\
+    (unsigned)sizeof (x))
+
 # define run1_lsb(p,x) (\
   bs_(Forward,x)        \
      (p,cmpl(x))        \
+  ? (unsigned)*(p)      \
+  : (unsigned)CHAR_BIT *\
+    (unsigned)sizeof (x))
+
+# define run0_lsb(p,x) (\
+  bs_(Forward,x)(p,x)   \
   ? (unsigned)*(p)      \
   : (unsigned)CHAR_BIT *\
     (unsigned)sizeof (x))
@@ -51,6 +69,11 @@ pragma_msvc(intrinsic(_BitScanReverse64))
           : (unsigned)cz_##s(x) \
                      (cmpl(x)))
 
+# define return_run0(s,x)       \
+  return (!(x)                  \
+          ? (unsigned)CHAR_BIT* \
+            (unsigned)sizeof(x) \
+          : (unsigned)cz_##s(x)(x))
 
 # define max_hamming(x) (       \
   (x) == _Generic(              \
@@ -81,9 +104,21 @@ u32_count_msb_1 (uint32_t x)
 }
 
 static force_inline unsigned
+u32_count_msb_0 (uint32_t x)
+{
+	return_run0(msb, x);
+}
+
+static force_inline unsigned
 u32_count_lsb_1 (uint32_t x)
 {
 	return_run1(lsb, x);
+}
+
+static force_inline unsigned
+u32_count_lsb_0 (uint32_t x)
+{
+	return_run0(lsb, x);
 }
 
 static force_inline unsigned
@@ -93,17 +128,32 @@ u64_count_msb_1 (uint64_t x)
 }
 
 static force_inline unsigned
+u64_count_msb_0 (uint64_t x)
+{
+	return_run0(msb, x);
+}
+
+static force_inline unsigned
 u64_count_lsb_1 (uint64_t x)
 {
 	return_run1(lsb, x);
 }
 
+static force_inline unsigned
+u64_count_lsb_0 (uint64_t x)
+{
+	return_run0(lsb, x);
+}
+
 #undef cmpl
+#undef return_run0
 #undef return_run1
 
 #ifdef _MSC_VER
 # undef bs_
+# undef run0_lsb
 # undef run1_lsb
+# undef run0_msb
 # undef run1_msb
 #else // _MSC_VER
 # undef cz_
@@ -118,10 +168,22 @@ u64_count_lsb_1 (uint64_t x)
  ,int32_t:u32_count_msb_1((uint32_t)(x))\
  ,int64_t:u64_count_msb_1((uint64_t)(x)))
 
+#define count_msb_0(x) _Generic((x)     \
+ ,uint32_t:u32_count_msb_0(x)           \
+ ,uint64_t:u64_count_msb_0(x)           \
+ ,int32_t:u32_count_msb_0((uint32_t)(x))\
+ ,int64_t:u64_count_msb_0((uint64_t)(x)))
+
 #define count_lsb_1(x) _Generic((x)     \
  ,uint32_t:u32_count_lsb_1(x)           \
  ,uint64_t:u64_count_lsb_1(x)           \
  ,int32_t:u32_count_lsb_1((uint32_t)(x))\
  ,int64_t:u64_count_lsb_1((uint64_t)(x)))
+
+#define count_lsb_0(x) _Generic((x)     \
+ ,uint32_t:u32_count_lsb_0(x)           \
+ ,uint64_t:u64_count_lsb_0(x)           \
+ ,int32_t:u32_count_lsb_0((uint32_t)(x))\
+ ,int64_t:u64_count_lsb_0((uint64_t)(x)))
 
 #endif /* DBS26_SRC_BITS_H_ */
