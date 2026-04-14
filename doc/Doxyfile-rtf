@@ -1,0 +1,2 @@
+@INCLUDE = Doxyfile
+GENERATE_RTF = YES
