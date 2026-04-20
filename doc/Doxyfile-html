@@ -1,2 +1,2 @@
-@INCLUDE = Doxyfile
+@INCLUDE = $(DOC_DIR)Doxyfile
 GENERATE_HTML = YES

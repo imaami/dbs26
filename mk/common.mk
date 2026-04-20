@@ -58,30 +58,7 @@ override compiler-var = $(call _____cc_var,$(strip $1),$(strip $2))
 $(call compiler-var,CC,clang gcc)
 $(call compiler-var,CXX,clang++ g++)
 
-# Undefine variable $1 if its origin is the environment.
-override define undef-env
-$(eval
-ifneq (,$$(filter environment,$$(origin $1)))
-override undefine $1
-endif
-)
-endef
-
-# If variable $1 is defined, and
-# - its origin is environment, or
-# - it's only whitespace, or
-# - it's an empty string,
-# then undefine it.
-override define undef-env-ws
-$(call undef-env,$1)
-$(eval
-ifneq (undefined,$$(flavor $1))
-ifeq (,$$(strip $$(value $1)))
-override undefine $1
-endif
-endif
-)
-endef
+include $(MK_DIR)o.mk
 
 override define __pkgcfg
 $(eval
@@ -147,9 +124,7 @@ override JSON  := $$(O_OBJ:=.json)
 $(call __pkgcfg_inc_cflags,$(SRC))
 endef
 
-$(call undef-env-ws,O)
-override O := $(subst //,/,$(abspath $(or $O,$(SRCDIR)../build))/)
-
+$(call set-build-dir,$(SRCDIR)../build)
 $(call targets,$(TGT))
 
 compile_commands.json: | $Ocompile_commands.json

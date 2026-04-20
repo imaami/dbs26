@@ -1,57 +1,68 @@
-override PROJECT_ROOT := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
+override REPO_DIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 
-override query-targets = $(sort $(shell \
+include $(REPO_DIR)mk/o.mk
+$(call set-build-dir,$(REPO_DIR)build)
+
+override import-sub-dir =$(sort $(shell \
   $(MAKE) -Rpqrs MAKECMDGOALS:=.DEFAULT \
           -f "$(strip $1)" 2> /dev/null \
   | grep ^\\.PHONY:| xargs printf %s\\n \
   | grep '^[a-z][0-9A-Z_a-z.-]*$$'))
 
-override PROJECT_DIRS = \
-  $(eval override PROJECT_DIRS:=$$(patsubst \
-    $(PROJECT_ROOT)%/Makefile,%,$$(wildcard \
-    $(PROJECT_ROOT)*/Makefile)))$(PROJECT_DIRS)
+override SUB_DIRS = \
+  $(eval override SUB_DIRS:=$$(patsubst \
+    $(REPO_DIR)%/Makefile,%,$$(wildcard \
+    $(REPO_DIR)*/Makefile)))$(SUB_DIRS)
 
-$(foreach d,$(PROJECT_DIRS), \
-  $(eval override TARGETS_$d \
-    :=$$(call query-targets, \
-      $(PROJECT_ROOT)$d/Makefile \
-    ) \
-  ) \
-)
+$(foreach d,$(SUB_DIRS),$(eval override \
+  TARGETS_$d := $$(call import-sub-dir, \
+    $(REPO_DIR)$d/Makefile)))
 
 $(eval override TARGETS := $$(sort \
   $$(filter-out default, \
-    $(PROJECT_DIRS:%=$$(TARGETS_%)) \
+    $(SUB_DIRS:%=$$(TARGETS_%)) \
   ) \
 ))
 
 .PHONY: default $(TARGETS)
 default $(TARGETS):; @:
 
-$(foreach d,$(PROJECT_DIRS), \
+$(foreach d,$(SUB_DIRS), \
   $(if $(TARGETS_$d), \
     $(if $(filter default,$(TARGETS_$d)),, \
       $(eval \
-        default: | $(PROJECT_ROOT)$d/default \
+        default: | $(REPO_DIR)$d/default \
       ) \
       $(eval \
-        .PHONY: $(PROJECT_ROOT)$d/default \
+        .PHONY: $(REPO_DIR)$d/default \
       ) \
       $(eval \
-        $(PROJECT_ROOT)$d/default:; \
-          @+$$(MAKE) -C "$$(@D)" \
+        $(REPO_DIR)$d/default:; \
+          @+$$(MAKE) -C "$$(@D)" O="$$O" \
       ) \
     ) \
     $(eval \
-      .PHONY: $$(TARGETS_$d:%=$(PROJECT_ROOT)$d/%) \
+      .PHONY: $$(TARGETS_$d:%=$(REPO_DIR)$d/%) \
     ) \
     $(eval \
-      $$(TARGETS_$d:%=$(PROJECT_ROOT)$d/%):; \
-        @+$$(MAKE) -C "$$(@D)" $$(@F) \
+      $$(TARGETS_$d:%=$(REPO_DIR)$d/%):; \
+        @+$$(MAKE) -C "$$(@D)" $$(@F) O="$$O" \
     ) \
     $(foreach x,$(TARGETS_$d), \
       $(eval \
-        $x: | $(PROJECT_ROOT)$d/$x \
+        $x: | $(REPO_DIR)$d/$x \
+      ) \
+    ) \
+  ) \
+)
+
+$(if $(filter purge,$(TARGETS)), \
+  $(foreach d,$(SUB_DIRS), \
+    $(if $(filter purge,$(TARGETS_$d)),, \
+      $(if $(filter clean,$(TARGETS_$d)), \
+        $(eval \
+          purge: | $(REPO_DIR)$d/clean \
+        ) \
       ) \
     ) \
   ) \

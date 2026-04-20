@@ -10,14 +10,17 @@ default:; @:
 all: | $(DOC_TGT)
 clean: | $(DOC_TGT:%=clean-%)
 
-$(foreach x,$(DOC_TGT:doc-%=%),\
-  $(eval doc-$x: $$(DOC_DIR)$x/) \
-  $(eval $$(DOC_DIR)$x/: $$(DOC_DIR)Doxyfile-$x))
+-include $(DOC_DIR)../mk/o.mk
+$(call set-build-dir,$(DOC_DIR)../build)
 
-$(DOC_DIR)%/: $(DOC_DIR)Doxyfile-%
-	@cd "$(DOC_DIR)" && doxygen -q "$(<F)"
+$(foreach x,$(DOC_TGT:doc-%=%),\
+  $(eval doc-$x: $$O$x/) \
+  $(eval $$O$x/: $$(DOC_DIR)Doxyfile-$x))
+
+$O%/: $(DOC_DIR)Doxyfile-%
+	@DOC_DIR="$(DOC_DIR)" O="$O" doxygen -q "$<"
 
 $(DOC_TGT:%=clean-%):
-	@$(RM) -r "$(DOC_DIR)$(@:clean-doc-%=%)/"
+	$(RM) -r "$O$(@:clean-doc-%=%)/"
 endif
 endif
