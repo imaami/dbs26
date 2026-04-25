@@ -22,6 +22,8 @@ ifneq (.DEFAULT,$(MAKECMDGOALS))
 CFLAGS     :=
 CPPFLAGS   := -Wall -Wextra -Wpedantic -DNDEBUG=1
 CXXFLAGS   :=
+LDLIBS     :=
+LDFLAGS    :=
 PKG_CONFIG := pkg-config
 
 # Here `override` is necessary for the appending to work.
@@ -149,11 +151,10 @@ $(TGT:%=$O%) $(A_OBJ) $(O_OBJ) $(JSON) $Ocompile_commands.json: | $O
 
 ifneq (,$(O_TGT))
 $(O_TGT:%=$O%):
-	+$(strip $(CC) $(CFLAGS)                      \
+	+$(strip $(CC) -o "$@" -MMD $(CFLAGS)         \
 	               -ffile-prefix-map=$(SRCDIR)='' \
-	               -MMD -o "$@" $^                \
-	               $(LDFLAGS_$(notdir $@))        \
-	               $(LDLIBS_$(notdir $@)))
+	               $^ $(LDFLAGS) $(LDFLAGS_$(@F)) \
+	               $(LDLIBS) $(LDLIBS_$(@F)))
 endif
 
 ifneq (,$(A_TGT))
