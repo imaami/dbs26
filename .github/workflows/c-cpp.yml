@@ -79,7 +79,7 @@ jobs:
                ${{ env.cl && 'exe_cl=$exe_cl' || '' }} \
                ${{ env.ccl && 'exe_ccl=$exe_ccl' || '' }} \
                pkg=dbs26-${{ steps.id.outputs.build }} \
-               src="args.c dbs26.c" >> "$GITHUB_OUTPUT"
+               src="args.c dbs26.c nproc.c solver.c task.c timer.c worker.c" >> "$GITHUB_OUTPUT"
 
         ${{ steps.id.outputs.cross_Windows && '
         echo "WINEDEBUG=-all" >> "$GITHUB_ENV"

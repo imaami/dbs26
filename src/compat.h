@@ -80,10 +80,30 @@ diag_clang(ignored "-Wpre-c23-compat")
 # endif // __clang_major__ >= 18
 #endif // __STDC_VERSION__ >= 202000L
 
+#if !defined __STRICT_ANSI__ && defined __clang__ && \
+    (__STDC_VERSION__ < 202000L || __clang_major__ == 14 \
+                                || __clang_major__ == 15)
+diag_clang(ignored "-Wlanguage-extension-token")
+#endif
+
+#if defined __STRICT_ANSI__ && \
+    ((defined __clang__ && (__STDC_VERSION__ < 202000L \
+                            || __clang_major__ == 14 \
+                            || __clang_major__ == 15)) \
+     || (gcc_at_least_version(13) && __STDC_VERSION__ < 202000L) \
+     || gcc_older_than_version(13))
+# define typeof __typeof__
+#endif
+
 // Complains about C11 when compiling C11
 #if clang_at_least_version(19)
 diag_clang(ignored "-Wpre-c11-compat")
 #endif // __clang_major__ >= 19
+
+// Idgaf about C++ cast rules in C mode jfc
+#if clang_at_least_version(21)
+diag_clang(ignored "-Wimplicit-void-ptr-cast")
+#endif // __clang_major__ >= 21
 
 #ifndef _MSC_VER
 # define force_inline __attribute__((always_inline)) inline
@@ -91,6 +111,13 @@ diag_clang(ignored "-Wpre-c11-compat")
 #else // _MSC_VER
 # define force_inline __forceinline
 # define const_inline __forceinline
+
+// Wow thanks for letting me know you inlined and/or didn't
+pragma_msvc(warning(disable: 4710))
+pragma_msvc(warning(disable: 4711))
+
+// Silence warning about Spectre mitigation on memory load
+pragma_msvc(warning(disable: 5045))
 #endif // _MSC_VER
 
 #endif /* DBS26_SRC_COMPAT_H_ */

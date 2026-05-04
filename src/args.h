@@ -6,6 +6,8 @@
 #ifndef DBS26_SRC_ARGS_H_
 #define DBS26_SRC_ARGS_H_
 
+#include "compat.h"
+
 #include <stdint.h>
 
 struct args {
