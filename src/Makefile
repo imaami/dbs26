@@ -4,7 +4,12 @@ override BIN := dbs26
 
 override SRC_dbs26 := \
   args.c              \
-  dbs26.c
+  dbs26.c             \
+  nproc.c             \
+  solver.c            \
+  task.c              \
+  timer.c             \
+  worker.c
 
 .PHONY: default
 default:| $(BIN)
