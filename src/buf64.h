@@ -7,15 +7,19 @@
 
 #include "compat.h"
 
-#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 
 _Static_assert(sizeof (uint64_t) == 8U,"");
-#define BUF64_MUT       ((size_t)1U << 0U)
-#define BUF64_OWN       ((size_t)1U << 1U)
-#define BUF64_MAX       ((size_t)-1 >> 3U)
-#define BUF64_SIZE_MASK ((size_t)-1 << 3U)
+
+#define BUF64_MUTABLE   UINT64_C(0x0000000000000001)
+#define BUF64_REFERENCE UINT64_C(0x0000000000000002)
+#define BUF64_MAX_LEN   UINT64_C(0x0000000040000000)
+#define BUF64_MAX_SIZE  UINT64_C(0x0000000200000000)
+#define BUF64_ATTR_MASK (BUF64_REFERENCE | BUF64_MUTABLE)
+#define BUF64_SIZE_MASK UINT64_C(0x00000003fffffff8)
+#define BUF64_ITER_MASK UINT64_C(0xfffffffc00000000)
+#define BUF64_MASK      (BUF64_ITER_MASK | BUF64_SIZE_MASK | BUF64_ATTR_MASK)
 
 /**
  * @brief A buffer of `uint64_t`
@@ -25,7 +29,7 @@ struct buf64 {
 		uint64_t const *imm;
 		uint64_t       *mut;
 	} data;
-	size_t meta;
+	uint64_t meta;
 };
 
 /**
@@ -40,14 +44,26 @@ struct buf64 {
  * @brief Initialize as owner of newly-allocated memory
  */
 static force_inline struct buf64
-buf64_init (size_t len)
+buf64_init (uint64_t len)
 {
-	return !len || len > BUF64_MAX
+	return !len || len > BUF64_MAX_LEN
 		? (struct buf64){0}
 		: (struct buf64){
 			.data.mut = calloc(len, sizeof (uint64_t)),
-			.meta = (len << 3U) | BUF64_OWN | BUF64_MUT
+			.meta = (len << 3U) | BUF64_MUTABLE
 		};
+}
+
+/**
+ * @brief Check if buffer owns its memory
+ *
+ * @param b Buffer
+ * @return true if buffer owns its memory, false otherwise
+ */
+static force_inline bool
+buf64_owns_memory (struct buf64 const *b)
+{
+	return (b->meta & BUF64_ATTR_MASK) == BUF64_MUTABLE;
 }
 
 /**
@@ -57,7 +73,7 @@ static force_inline void
 buf64_fini (struct buf64 *b)
 {
 	if (b) {
-		if (b->meta & BUF64_OWN)
+		if (buf64_owns_memory(b))
 			free(b->data.mut);
 		*b = (struct buf64){0};
 	}
@@ -68,13 +84,13 @@ buf64_fini (struct buf64 *b)
  */
 static force_inline struct buf64
 buf64_init_ref (uint64_t *ptr,
-                size_t    len)
+                uint64_t  len)
 {
-	return !ptr || !len || len > BUF64_MAX
+	return !ptr || len > BUF64_MAX_LEN
 		? (struct buf64){0}
 		: (struct buf64){
 			.data.mut = ptr,
-			.meta = (len << 3U) | BUF64_MUT
+			.meta = (len << 3U) | BUF64_REFERENCE | BUF64_MUTABLE
 		};
 }
 
@@ -83,13 +99,13 @@ buf64_init_ref (uint64_t *ptr,
  */
 static force_inline struct buf64
 buf64_init_cref (uint64_t const *ptr,
-                 size_t          len)
+                 uint64_t        len)
 {
-	return !ptr || !len || len > BUF64_MAX
+	return !ptr || len > BUF64_MAX_LEN
 		? (struct buf64){0}
 		: (struct buf64){
 			.data.imm = ptr,
-			.meta = len << 3U
+			.meta = (len << 3U) | BUF64_REFERENCE
 		};
 }
 
@@ -112,7 +128,7 @@ buf64_view (struct buf64 const *b)
 {
 	return (struct buf64){
 		.data = b->data,
-		.meta = b->meta & (BUF64_SIZE_MASK | BUF64_MUT)
+		.meta = (b->meta & BUF64_MASK) | BUF64_REFERENCE
 	};
 }
 
@@ -133,21 +149,21 @@ buf64_move (struct buf64 *src)
 }
 
 /**
- * @brief Get data length in units of `uint64_t`
+ * @brief Get data size in bytes
  */
-static force_inline size_t
-buf64_len (struct buf64 const *b)
+static force_inline uint64_t
+buf64_size (struct buf64 const *const b)
 {
-	return b->meta >> 3U;
+	return b->meta & BUF64_SIZE_MASK;
 }
 
 /**
- * @brief Get data size in bytes
+ * @brief Get data length in units of `uint64_t`
  */
-static force_inline size_t
-buf64_size (struct buf64 const *b)
+static force_inline uint64_t
+buf64_len (struct buf64 const *const b)
 {
-	return b->meta & BUF64_SIZE_MASK;
+	return buf64_size(b) >> 3U;
 }
 
 /**
@@ -166,26 +182,16 @@ buf64_cdata (struct buf64 const *b)
  * @return Data pointer if buffer is mutable, nullptr otherwise
  */
 static force_inline uint64_t *
-buf64_data (struct buf64 const *b)
+buf64_data (struct buf64 const *const b)
 {
-	return (b->meta & BUF64_MUT) ? b->data.mut : nullptr;
+	return (b->meta & BUF64_MUTABLE) ? b->data.mut : nullptr;
 }
 
-/**
- * @brief Check if buffer owns its memory
- *
- * @param b Buffer
- * @return true if buffer owns its memory, false otherwise
- */
-static force_inline bool
-buf64_owns_memory (struct buf64 const *b)
-{
-	return !!(b->meta & BUF64_OWN);
-}
-
+#undef BUF64_MASK
+#undef BUF64_ATTR_MASK
 #undef BUF64_SIZE_MASK
 #undef BUF64_MAX
-#undef BUF64_OWN
-#undef BUF64_MUT
+#undef BUF64_REFERENCE
+#undef BUF64_MUTABLE
 
 #endif /* DBS26_SRC_BUF64_H_ */
