@@ -55,10 +55,20 @@ diag_clang(pop)
 #undef HAVE_C23_BOOL
 #undef HAVE_C23_NULLPTR
 
+// Pointless warning zero-initializing a struct
+#if clang_older_than_version(9)
+diag_clang(ignored "-Wmissing-braces")
+#endif // __clang_major__ < 9
+
 // Old Clang versions don't know new Doxygen commands
 #if clang_older_than_version(10)
 diag_clang(ignored "-Wdocumentation-unknown-command")
 #endif // __clang_major__ < 10
+
+// At times I feel Clang's just looking for an argument
+#if clang_older_than_version(19)
+diag_clang(ignored "-Wgnu-zero-variadic-macro-arguments")
+#endif // __clang_major__ < 19
 
 // Complains about C99 syntax
 #if clang_at_least_version(14)
@@ -69,6 +79,16 @@ diag_clang(ignored "-Wdeclaration-after-statement")
 #if clang_at_least_version(16)
 diag_clang(ignored "-Wunsafe-buffer-usage")
 #endif // __clang_major__ >= 16
+
+// I don't need to be told I use extensions
+#if __STDC_VERSION__ < 202311L
+# if clang_at_least_version(11) && clang_older_than_version(18)
+diag_clang(ignored "-Wc2x-extensions")
+# endif // 11 <= __clang_major__ < 18
+# if clang_at_least_version(18)
+diag_clang(ignored "-Wc23-extensions")
+# endif // __clang_major__ >= 18
+#endif // __STDC_VERSION__ < 202311L
 
 // These whine about C23 when compiling C23
 #if __STDC_VERSION__ >= 202000L
