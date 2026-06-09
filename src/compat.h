@@ -55,10 +55,20 @@ diag_clang(pop)
 #undef HAVE_C23_BOOL
 #undef HAVE_C23_NULLPTR
 
+// Pointless warning zero-initializing a struct
+#if clang_older_than_version(9)
+diag_clang(ignored "-Wmissing-braces")
+#endif // __clang_major__ < 9
+
 // Old Clang versions don't know new Doxygen commands
 #if clang_older_than_version(10)
 diag_clang(ignored "-Wdocumentation-unknown-command")
 #endif // __clang_major__ < 10
+
+// At times I feel Clang's just looking for an argument
+#if clang_older_than_version(19)
+diag_clang(ignored "-Wgnu-zero-variadic-macro-arguments")
+#endif // __clang_major__ < 19
 
 // Complains about C99 syntax
 #if clang_at_least_version(14)
@@ -70,6 +80,16 @@ diag_clang(ignored "-Wdeclaration-after-statement")
 diag_clang(ignored "-Wunsafe-buffer-usage")
 #endif // __clang_major__ >= 16
 
+// I don't need to be told I use extensions
+#if __STDC_VERSION__ < 202311L
+# if clang_at_least_version(11) && clang_older_than_version(18)
+diag_clang(ignored "-Wc2x-extensions")
+# endif // 11 <= __clang_major__ < 18
+# if clang_at_least_version(18)
+diag_clang(ignored "-Wc23-extensions")
+# endif // __clang_major__ >= 18
+#endif // __STDC_VERSION__ < 202311L
+
 // These whine about C23 when compiling C23
 #if __STDC_VERSION__ >= 202000L
 # if clang_at_least_version(16) && clang_older_than_version(18)
@@ -80,10 +100,30 @@ diag_clang(ignored "-Wpre-c23-compat")
 # endif // __clang_major__ >= 18
 #endif // __STDC_VERSION__ >= 202000L
 
+#if !defined __STRICT_ANSI__ && defined __clang__ && \
+    (__STDC_VERSION__ < 202000L || __clang_major__ == 14 \
+                                || __clang_major__ == 15)
+diag_clang(ignored "-Wlanguage-extension-token")
+#endif
+
+#if defined __STRICT_ANSI__ && \
+    ((defined __clang__ && (__STDC_VERSION__ < 202000L \
+                            || __clang_major__ == 14 \
+                            || __clang_major__ == 15)) \
+     || (gcc_at_least_version(13) && __STDC_VERSION__ < 202000L) \
+     || gcc_older_than_version(13))
+# define typeof __typeof__
+#endif
+
 // Complains about C11 when compiling C11
 #if clang_at_least_version(19)
 diag_clang(ignored "-Wpre-c11-compat")
 #endif // __clang_major__ >= 19
+
+// Idgaf about C++ cast rules in C mode jfc
+#if clang_at_least_version(21)
+diag_clang(ignored "-Wimplicit-void-ptr-cast")
+#endif // __clang_major__ >= 21
 
 #ifndef _MSC_VER
 # define force_inline __attribute__((always_inline)) inline
@@ -91,6 +131,13 @@ diag_clang(ignored "-Wpre-c11-compat")
 #else // _MSC_VER
 # define force_inline __forceinline
 # define const_inline __forceinline
+
+// Wow thanks for letting me know you inlined and/or didn't
+pragma_msvc(warning(disable: 4710))
+pragma_msvc(warning(disable: 4711))
+
+// Silence warning about Spectre mitigation on memory load
+pragma_msvc(warning(disable: 5045))
 #endif // _MSC_VER
 
 #endif /* DBS26_SRC_COMPAT_H_ */

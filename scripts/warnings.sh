@@ -31,18 +31,28 @@ run_() {
 }
 
 run() {
-	local -agr clang_s3=(c23 gnu23)     clang_v3=(18 19 20 21)
+	local -agr clang_s4=(c2y gnu2y)     clang_v4=(19 20 21 22 23)
+	local -agr clang_s3=(c23 gnu23)     clang_v3=(18 "${clang_v4[@]}")
 	local -agr clang_s2=(c2x gnu2x)     clang_v2=(9 1{0,1,2,3,4,5,6,7} "${clang_v3[@]}")
 	local -agr clang_s1=(c18 gnu18)     clang_v1=(8 "${clang_v2[@]}")
 	local -agr clang_s0=({c,gnu}1{1,7}) clang_v0=(6.0 7 "${clang_v1[@]}")
-	local -agr gcc_s3=(c23 gnu23)       gcc_v3=(14 15)
+	local -agr gcc_s4=(c2y gnu2y)       gcc_v4=(15 16)
+	local -agr gcc_s3=(c23 gnu23)       gcc_v3=(14 "${gcc_v4[@]}")
 	local -agr gcc_s2=(c2x gnu2x)       gcc_v2=(9 10 11 12 13 "${gcc_v3[@]}")
 	local -agr gcc_s1=(c18 gnu18)       gcc_v1=(8 "${gcc_v2[@]}")
 	local -agr gcc_s0=(c11 gnu11)       gcc_v0=(7 "${gcc_v1[@]}")
-	local -ar sources=(src/args.c src/dbs26.c)
+	local -ar sources=(
+		src/args.c
+		src/dbs26.c
+		src/nproc.c
+		src/solver.c
+		src/task.c
+		src/timer.c
+		src/worker.c
+	)
 	local -ar c_flags=(-O3 -m{arch,tune}=native -W{all,extra,pedantic})
 	local -i i
-	for ((i = 0; i < 4; i++)); do
+	for ((i = 0; i < 5; i++)); do
 		run_ clang "$i" "${c_flags[@]}" -flto=full -fuse-ld=lld -Weverything  \
 		           "${sources[@]}" "$@"
 		run_ gcc   "$i" "${c_flags[@]}" -flto=auto \
