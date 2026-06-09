@@ -12,14 +12,12 @@
 
 _Static_assert(sizeof (uint64_t) == 8U,"");
 
-#define BUF64_MUTABLE   UINT64_C(0x0000000000000001)
-#define BUF64_REFERENCE UINT64_C(0x0000000000000002)
-#define BUF64_MAX_LEN   UINT64_C(0x0000000040000000)
-#define BUF64_MAX_SIZE  UINT64_C(0x0000000200000000)
-#define BUF64_ATTR_MASK (BUF64_REFERENCE | BUF64_MUTABLE)
-#define BUF64_SIZE_MASK UINT64_C(0x00000003fffffff8)
-#define BUF64_ITER_MASK UINT64_C(0xfffffffc00000000)
-#define BUF64_MASK      (BUF64_ITER_MASK | BUF64_SIZE_MASK | BUF64_ATTR_MASK)
+#define BUF64_MAX  UINT64_C(0x0000000040000000)
+#define BUF64_LEN  UINT64_C(0x000000007fffffff)
+#define BUF64_LEFT UINT64_C(0x3fffffff80000000)
+#define BUF64_MUT  UINT64_C(0x4000000000000000)
+#define BUF64_REF  UINT64_C(0x8000000000000000)
+#define BUF64_ATTR (BUF64_REF | BUF64_MUT)
 
 /**
  * @brief A buffer of `uint64_t`
@@ -32,13 +30,25 @@ struct buf64 {
 	uint64_t meta;
 };
 
+diag_gcc(push)
+diag_gcc(ignored "-Wpedantic")
+
 /**
  * @brief Create a buffer with ownership and mutability derived from argument types
  */
+#if gcc_older_than_version(15) || clang_older_than_version(12)
+#define buf64(x, ...) _Generic((x), \
+        default: buf64_init,        \
+        uint64_t *: buf64_init_ref, \
+        uint64_t const *: buf64_init_cref)((x), ## __VA_ARGS__)
+#else
 #define buf64(x, ...) _Generic((x), \
         default: buf64_init,        \
         uint64_t *: buf64_init_ref, \
         uint64_t const *: buf64_init_cref)((x) __VA_OPT__(, __VA_ARGS__))
+#endif
+
+diag_gcc(pop)
 
 /**
  * @brief Initialize as owner of newly-allocated memory
@@ -46,11 +56,11 @@ struct buf64 {
 static force_inline struct buf64
 buf64_init (uint64_t len)
 {
-	return !len || len > BUF64_MAX_LEN
+	return !len || len > BUF64_MAX
 		? (struct buf64){0}
 		: (struct buf64){
 			.data.mut = calloc(len, sizeof (uint64_t)),
-			.meta = (len << 3U) | BUF64_MUTABLE
+			.meta = BUF64_MUT | (len << 31U)
 		};
 }
 
@@ -63,7 +73,7 @@ buf64_init (uint64_t len)
 static force_inline bool
 buf64_owns_memory (struct buf64 const *b)
 {
-	return (b->meta & BUF64_ATTR_MASK) == BUF64_MUTABLE;
+	return (b->meta & BUF64_ATTR) == BUF64_MUT;
 }
 
 /**
@@ -86,11 +96,11 @@ static force_inline struct buf64
 buf64_init_ref (uint64_t *ptr,
                 uint64_t  len)
 {
-	return !ptr || len > BUF64_MAX_LEN
+	return !ptr || len > BUF64_MAX
 		? (struct buf64){0}
 		: (struct buf64){
 			.data.mut = ptr,
-			.meta = (len << 3U) | BUF64_REFERENCE | BUF64_MUTABLE
+			.meta = BUF64_REF | BUF64_MUT | (len << 31U)
 		};
 }
 
@@ -101,11 +111,11 @@ static force_inline struct buf64
 buf64_init_cref (uint64_t const *ptr,
                  uint64_t        len)
 {
-	return !ptr || len > BUF64_MAX_LEN
+	return !ptr || len > BUF64_MAX
 		? (struct buf64){0}
 		: (struct buf64){
 			.data.imm = ptr,
-			.meta = (len << 3U) | BUF64_REFERENCE
+			.meta = BUF64_REF | (len << 31U)
 		};
 }
 
@@ -128,7 +138,7 @@ buf64_view (struct buf64 const *b)
 {
 	return (struct buf64){
 		.data = b->data,
-		.meta = (b->meta & BUF64_MASK) | BUF64_REFERENCE
+		.meta = b->meta | BUF64_REF
 	};
 }
 
@@ -149,12 +159,21 @@ buf64_move (struct buf64 *src)
 }
 
 /**
- * @brief Get data size in bytes
+ * @brief Get unused buffer size in units of `uint64_t`
  */
 static force_inline uint64_t
-buf64_size (struct buf64 const *const b)
+buf64_left (struct buf64 const *const b)
 {
-	return b->meta & BUF64_SIZE_MASK;
+	return (b->meta & BUF64_LEFT) >> 31U;
+}
+
+/**
+ * @brief Check if buffer is full
+ */
+static force_inline bool
+buf64_is_full (struct buf64 const *const b)
+{
+	return b->meta & BUF64_LEFT;
 }
 
 /**
@@ -163,7 +182,16 @@ buf64_size (struct buf64 const *const b)
 static force_inline uint64_t
 buf64_len (struct buf64 const *const b)
 {
-	return buf64_size(b) >> 3U;
+	return (b->meta + (b->meta >> 31U)) & BUF64_LEN;
+}
+
+/**
+ * @brief Get data size in bytes
+ */
+static force_inline uint64_t
+buf64_size (struct buf64 const *const b)
+{
+	return buf64_len(b) * sizeof (uint64_t);
 }
 
 /**
@@ -184,14 +212,25 @@ buf64_cdata (struct buf64 const *b)
 static force_inline uint64_t *
 buf64_data (struct buf64 const *const b)
 {
-	return (b->meta & BUF64_MUTABLE) ? b->data.mut : nullptr;
+	return (b->meta & BUF64_MUT) ? b->data.mut : nullptr;
 }
 
-#undef BUF64_MASK
-#undef BUF64_ATTR_MASK
-#undef BUF64_SIZE_MASK
+/**
+ * @brief Reset the buffer position to 0
+ */
+static force_inline struct buf64 *
+buf64_rewind (struct buf64 *const b)
+{
+	uint64_t len = b->meta & BUF64_LEN;
+	b->meta += len * BUF64_LEN;
+	return b;
+}
+
+#undef BUF64_ATTR
+#undef BUF64_REF
+#undef BUF64_MUT
+#undef BUF64_LEFT
+#undef BUF64_LEN
 #undef BUF64_MAX
-#undef BUF64_REFERENCE
-#undef BUF64_MUTABLE
 
 #endif /* DBS26_SRC_BUF64_H_ */
